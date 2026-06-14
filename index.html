@@ -267,6 +267,7 @@ function IntroScreen({ onDone }) {
         @keyframes introT2 { 0%{opacity:0;transform:translateY(8px);} 100%{opacity:1;transform:translateY(0);} }
         @keyframes introT3 { 0%{opacity:0;} 100%{opacity:0.42;} }
         @keyframes introGlow { 0%,100%{box-shadow:0 0 50px rgba(180,120,30,0.22),0 0 100px rgba(120,70,5,0.10);} 50%{box-shadow:0 0 80px rgba(200,140,40,0.32),0 0 140px rgba(150,90,15,0.15);} }
+        @keyframes tapGlow { 0%,100%{ color: rgba(180,148,82,0.30); text-shadow:0 0 6px rgba(212,175,100,0.10); } 50%{ color: rgba(228,192,116,0.65); text-shadow:0 0 18px rgba(228,192,116,0.65); } }
       `}</style>
       <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 42%, rgba(80,40,5,0.30) 0%, transparent 70%)", pointerEvents:"none" }} />
       <div style={{
@@ -289,7 +290,7 @@ function IntroScreen({ onDone }) {
           <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(9px,2.5vw,11px)", letterSpacing:"0.38em", color:"rgba(180,130,40,0.60)", textTransform:"uppercase", marginBottom:10, animation:"introT3 0.8s ease both" }}>Reverend Insanity · Gu Zhen Ren</div>
           <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(16px,4.2vw,28px)", fontWeight:700, color:"#e8d6a8", letterSpacing:"0.04em", lineHeight:1.2, marginBottom:16, animation:"introT1 0.7s 0.1s ease both", textShadow:"0 2px 28px rgba(180,120,20,0.45)", whiteSpace:"nowrap" }}>The Legends of Ren Zu</div>
           <div style={{ fontFamily:"'EB Garamond', 'Cormorant Garamond', Georgia, serif", fontStyle:"italic", fontWeight:400, fontSize:"clamp(8px,1.1vw,9px)", color:"rgba(226,206,165,0.50)", letterSpacing:"0.04em", lineHeight:1.35, maxWidth:"min(360px,80vw)", margin:"0 auto 16px", textAlign:"center", animation:"introT2 0.7s 0.22s ease both" }}>The Legends of Ren Zu is an esoteric tragedy chronicling how humanity's first ancestor, Ren Zu, bartered his very essence to primordial concepts in a relentless, brutal pursuit to ultimately conquer Fate itself.</div>
-          <div style={{ fontFamily:"'Poppins', sans-serif", fontWeight:300, fontSize:"clamp(8px,1.8vw,9px)", color:"rgba(180,148,82,0.30)", letterSpacing:"0.30em", textTransform:"uppercase", animation:"introT3 0.5s 0.5s ease both" }}>Tap to enter</div>
+          <div style={{ fontFamily:"'Poppins', sans-serif", fontWeight:300, fontSize:"clamp(8px,1.8vw,9px)", color:"rgba(180,148,82,0.30)", letterSpacing:"0.30em", textTransform:"uppercase", animation:"introT3 0.5s 0.5s ease both, tapGlow 2.6s ease-in-out 1.2s infinite" }}>Tap to enter</div>
         </>)}
       </div>
     </div>
