@@ -481,6 +481,7 @@ function RenZuReader() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [audioStatus, setAudioStatus] = useState(""); // "loading-model" | "buffering" | ""
+  const [downloadProgress, setDownloadProgress] = useState(0); // 0-100
   const audioElRef = useRef(null);
   const kokoroWorkerRef = useRef(null);
   // AudioContext pipeline for chunked streaming
@@ -547,68 +548,84 @@ function RenZuReader() {
     }
     const workerSrc = `
       let tts = null;
-      let currentVoice = null;
-      let kokoroLoaded = false;
-      
-      // Load Kokoro using importScripts (more reliable than ES6 imports in Workers)
-      function loadKokoroLib() {
-        return new Promise((resolve, reject) => {
-          try {
-            importScripts('https://cdn.jsdelivr.net/npm/kokoro-js@latest/dist/kokoro.web.js');
-            // Give it time to register the global
-            setTimeout(() => {
-              if (typeof self.KokoroTTS !== 'undefined') {
-                kokoroLoaded = true;
-                resolve(self.KokoroTTS);
-              } else {
-                reject(new Error('KokoroTTS failed to load from CDN'));
-              }
-            }, 500);
-          } catch(e) {
-            reject(new Error('Failed to load Kokoro: ' + String(e)));
+
+      // Fetch a file and report download progress back to main thread
+      async function fetchWithProgress(url, label) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch ' + url);
+        const total = parseInt(res.headers.get('content-length') || '0', 10);
+        const reader = res.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (total > 0) {
+            self.postMessage({ type: 'progress', label, percent: Math.round((received / total) * 100), received, total });
           }
-        });
+        }
+        const merged = new Uint8Array(received);
+        let offset = 0;
+        for (const c of chunks) { merged.set(c, offset); offset += c.length; }
+        return merged.buffer;
       }
-      
+
       self.onmessage = async (e) => {
-        const { type, text, voice, chunks } = e.data;
+        const { type, voice, chunks } = e.data;
 
         if (type === 'init') {
           try {
             self.postMessage({ type: 'loading' });
-            
-            // Load KokoroTTS if not already loaded
-            let KokoroTTS;
-            if (kokoroLoaded && self.KokoroTTS) {
-              KokoroTTS = self.KokoroTTS;
-            } else {
-              KokoroTTS = await loadKokoroLib();
-            }
-            
-            tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+
+            // Step 1 — load the JS library
+            self.postMessage({ type: 'progress', label: 'Waking up the storyteller', percent: 0 });
+            importScripts('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js');
+            self.postMessage({ type: 'progress', label: 'Waking up the storyteller', percent: 100 });
+
+            // Step 2 — load the model; pipe progress through our handler
+            // Monkey-patch fetch so Kokoro's internal downloads report progress
+            const originalFetch = self.fetch;
+            let fileIndex = 0;
+            const fileLabels = [
+              'Preparing the voice model',
+              'Loading voice weights',
+              'Summoning Ren Zu',
+            ];
+            self.fetch = async (...args) => {
+              const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+              const label = fileLabels[fileIndex % fileLabels.length];
+              fileIndex++;
+              try {
+                const buf = await fetchWithProgress(url, label);
+                return new Response(buf);
+              } catch(_) {
+                return originalFetch(...args);
+              }
+            };
+
+            tts = await self.KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
               dtype: 'q8',
               device: 'wasm',
             });
-            currentVoice = voice;
+
+            self.fetch = originalFetch; // restore
             self.postMessage({ type: 'ready' });
           } catch(err) {
-            console.error('Kokoro init error:', err);
-            self.postMessage({ type: 'error', message: 'Model load failed: ' + String(err) });
+            self.postMessage({ type: 'error', message: String(err) });
           }
+
         } else if (type === 'generate_chunks') {
-          // Process chunks sequentially so WASM memory stays bounded
           for (let i = 0; i < chunks.length; i++) {
             try {
               const audio = await tts.generate(chunks[i], { voice });
-              // toWav() returns a Uint8Array; copy it to avoid detached buffer issues
               const wavSrc = audio.toWav();
               const wavCopy = new Uint8Array(wavSrc.byteLength);
               wavCopy.set(wavSrc);
               self.postMessage({ type: 'chunk', wav: wavCopy.buffer, index: i, total: chunks.length }, [wavCopy.buffer]);
             } catch(err) {
-              console.error('Kokoro chunk generation error at', i, ':', err);
               self.postMessage({ type: 'chunk_error', index: i, message: String(err) });
-              // Continue to next chunk rather than aborting
             }
           }
           self.postMessage({ type: 'done' });
@@ -623,8 +640,13 @@ function RenZuReader() {
       const { type, wav, index, total } = e.data;
       if (type === 'loading') {
         setAudioStatus("loading-model");
+        setDownloadProgress(0);
         setAudioLoading(true);
+      } else if (type === 'progress') {
+        setAudioStatus(e.data.label);
+        setDownloadProgress(e.data.percent);
       } else if (type === 'ready') {
+        setDownloadProgress(100);
         setAudioStatus("buffering");
       } else if (type === 'chunk') {
         if (!playbackActiveRef.current) return;
@@ -714,7 +736,7 @@ function RenZuReader() {
     chunkQueueRef.current = [];
     nextStartTimeRef.current = 0;
 
-    const kokoroVoice = voice === "female" ? "bf_emma" : "bm_george";
+    const kokoroVoice = voice === "female" ? "bf_emma" : "bm_lewis";
     const chunks = splitIntoChunks(selected.body);
 
     try {
@@ -724,8 +746,13 @@ function RenZuReader() {
         const { type, wav, index, total } = e.data;
         if (type === 'loading') {
           setAudioStatus("loading-model");
+          setDownloadProgress(0);
           setAudioLoading(true);
+        } else if (type === 'progress') {
+          setAudioStatus(e.data.label);
+          setDownloadProgress(e.data.percent);
         } else if (type === 'ready') {
+          setDownloadProgress(100);
           setAudioStatus("buffering");
           // Model ready — now send all chunks
           worker.postMessage({ type: 'generate_chunks', chunks, voice: kokoroVoice });
@@ -796,6 +823,7 @@ function RenZuReader() {
     setAudioPlaying(false);
     setAudioLoading(false);
     setAudioStatus("");
+    setDownloadProgress(0);
     if (kokoroWorkerRef.current) {
       kokoroWorkerRef.current.terminate();
       kokoroWorkerRef.current = null;
@@ -810,6 +838,7 @@ function RenZuReader() {
     setAudioError(false);
     setAudioLoading(false);
     setAudioStatus("");
+    setDownloadProgress(0);
     if (kokoroWorkerRef.current) {
       kokoroWorkerRef.current.terminate();
       kokoroWorkerRef.current = null;
@@ -1323,50 +1352,91 @@ function RenZuReader() {
                 <div style={{ marginTop: 20, height: 1, background: D ? `linear-gradient(90deg, ${accentLine} 0%, rgba(255,255,255,0.06) 50%, transparent 80%)` : `linear-gradient(90deg, ${accentLine} 0%, transparent 70%)` }} />
 
                 {/* ── Narration player ── */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-                  <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause narration" : "Play narration"}
-                    disabled={audioLoading}
-                    style={{
-                      flexShrink: 0, width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                      background: D ? "rgba(255,255,255,0.07)" : S ? "rgba(101,66,20,0.12)" : "rgba(0,0,0,0.07)",
-                      border: `1px solid ${border}`, color: text, cursor: audioLoading ? "default" : "pointer", transition: "all 0.17s",
-                      opacity: audioLoading ? 0.5 : 1,
-                    }}
-                    onMouseEnter={e => { if (!audioLoading) e.currentTarget.style.borderColor = borderHov; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = border; }}
-                  >
-                    {audioLoading ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2.5" strokeLinecap="round">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
-                          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
-                        </path>
-                      </svg>
-                    ) : audioPlaying ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><path d="M6 4 L20 12 L6 20 Z"/></svg>
-                    )}
-                  </button>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {["female","male"].map(v => (
-                      <button key={v} onClick={() => switchVoice(v)} className="tag-pill" style={{
-                        padding: "5px 14px", fontSize: 10, borderRadius: 999,
-                        border: `1px solid ${voice === v ? tagActiveBorder : border}`,
-                        background: voice === v ? tagActiveBg : "transparent",
-                        color: voice === v ? tagActiveColor : textDim,
-                        cursor: "pointer", fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.12em", transition: "all 0.15s",
-                      }}>{v}</button>
-                    ))}
-                  </div>
-                  <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>
-                    {audioError
-                      ? "Narration unavailable"
-                      : audioLoading
-                        ? (audioStatus === "loading-model" ? "Downloading Kokoro AI…" : "Buffering…")
+                <div style={{ marginTop: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause narration" : "Play narration"}
+                      disabled={audioLoading}
+                      style={{
+                        flexShrink: 0, width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                        background: D ? "rgba(255,255,255,0.07)" : S ? "rgba(101,66,20,0.12)" : "rgba(0,0,0,0.07)",
+                        border: `1px solid ${border}`, color: text, cursor: audioLoading ? "default" : "pointer", transition: "all 0.17s",
+                        opacity: audioLoading ? 0.6 : 1,
+                      }}
+                      onMouseEnter={e => { if (!audioLoading) e.currentTarget.style.borderColor = borderHov; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = border; }}
+                    >
+                      {audioLoading ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                            <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+                          </path>
+                        </svg>
+                      ) : audioPlaying ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><path d="M6 4 L20 12 L6 20 Z"/></svg>
+                      )}
+                    </button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {["female","male"].map(v => (
+                        <button key={v} onClick={() => switchVoice(v)} className="tag-pill" style={{
+                          padding: "5px 14px", fontSize: 10, borderRadius: 999,
+                          border: `1px solid ${voice === v ? tagActiveBorder : border}`,
+                          background: voice === v ? tagActiveBg : "transparent",
+                          color: voice === v ? tagActiveColor : textDim,
+                          cursor: "pointer", fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.12em", transition: "all 0.15s",
+                        }}>{v === "female" ? "Emma" : "Lewis"}</button>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>
+                      {audioError
+                        ? "Narration unavailable"
                         : audioPlaying
                           ? "Narrating…"
-                          : "Listen — Kokoro AI"}
-                  </span>
+                          : audioLoading
+                            ? ""
+                            : "Listen — Kokoro AI"}
+                    </span>
+                  </div>
+
+                  {/* ── Download progress bar — only shown while model is loading ── */}
+                  {audioLoading && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, color: textMid, fontFamily: headFont, letterSpacing: "0.08em" }}>
+                          {audioStatus === "buffering"
+                            ? "Almost there… preparing first words"
+                            : audioStatus || "Waking up the storyteller…"}
+                        </span>
+                        <span style={{ fontSize: 10, color: textDim, fontFamily: headFont, letterSpacing: "0.05em", marginLeft: 8 }}>
+                          {audioStatus === "buffering" ? "✓" : `${downloadProgress}%`}
+                        </span>
+                      </div>
+                      {/* Track */}
+                      <div style={{
+                        height: 3, borderRadius: 99,
+                        background: D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.12)" : "rgba(0,0,0,0.08)",
+                        overflow: "hidden",
+                      }}>
+                        {/* Fill */}
+                        <div style={{
+                          height: "100%", borderRadius: 99,
+                          width: audioStatus === "buffering" ? "100%" : `${downloadProgress}%`,
+                          background: D
+                            ? "linear-gradient(90deg, rgba(180,160,255,0.6), rgba(200,180,255,0.9))"
+                            : S
+                              ? "linear-gradient(90deg, rgba(139,94,26,0.5), rgba(180,130,40,0.85))"
+                              : "linear-gradient(90deg, rgba(0,0,0,0.25), rgba(0,0,0,0.5))",
+                          transition: "width 0.4s ease",
+                        }} />
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 9, color: textDim, fontFamily: headFont, letterSpacing: "0.1em" }}>
+                        {audioStatus === "buffering"
+                          ? "First time only — model cached after this"
+                          : "First time only — ~200 MB · cached after this · no re-download"}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
