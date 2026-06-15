@@ -128,6 +128,7 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Accept-Ranges", "bytes");
     
     return res.send(wavData);
   } catch (err) {
