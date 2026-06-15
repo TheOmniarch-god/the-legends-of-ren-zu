@@ -498,15 +498,51 @@ function RenZuReader() {
     }, 300);
   }
 
-  // ── Audio narration helpers ──────────────────────────────────────
-  // Maps a chapter's display number (e.g. "10 & 11", "4 & 5") to the
-  // filename slug used for its narration files (e.g. "10-11", "4-5").
-  function audioSlug(num) {
-    return num.replace(/\s*&\s*/g, "-").replace(/\s+/g, "");
+  // ── Google Cloud TTS narration ───────────────────────────────────
+  // SSML preprocessing: annotate Chinese names/terms for natural English TTS
+  function buildSSML(text, voiceGender) {
+    // Escape XML special characters
+    const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    // Phoneme / substitution map for proper nouns and unusual terms
+    const subs = [
+      // Names
+      [/\bRen Zu\b/g, '<phoneme alphabet="ipa" ph="ɹɛn zuː">Ren Zu</phoneme>'],
+      [/\bGu Zhen Ren\b/g, '<phoneme alphabet="ipa" ph="ɡuː dʒɛn ɹɛn">Gu Zhen Ren</phoneme>'],
+      [/\bVerdant Great Sun\b/g, '<phoneme alphabet="ipa" ph="vɜːdənt ɡɹeɪt sʌn">Verdant Great Sun</phoneme>'],
+      [/\bDesolate Ancient Moon\b/g, 'Desolate Ancient Moon'],
+      [/\bNorthern Dark Ice Soul\b/g, 'Northern Dark Ice Soul'],
+      [/\bBoundless Forest Samsara\b/g, 'Boundless Forest <phoneme alphabet="ipa" ph="sæmˈsɑːrə">Samsara</phoneme>'],
+      [/\bBlazing Glory Lightning Brilliance\b/g, 'Blazing Glory Lightning Brilliance'],
+      [/\bGreat Strength True Martial\b/g, 'Great Strength True Martial'],
+      [/\bCarefree Wisdom Heart\b/g, 'Carefree Wisdom Heart'],
+      // Gu terms — "Gu" pronounced "goo"
+      [/\b(Hope|Strength|Wisdom|Rules?|Regulation|Longevity|Attitude|Belief|Suspicion|Cognition|Faith|Courage|Reputation|Love|Freedom|Fear|Weak|Strong|Betrayal|Effort|Ability|Perseverance|Serious|Learning|Talent|Self|Pride|Humility|Forgiveness|Authority|Memory|Fortitude) Gu\b/g,
+        (m, name) => `${esc(name)} <phoneme alphabet="ipa" ph="ɡuː">Gu</phoneme>`],
+      [/\bGu Worm/g, '<phoneme alphabet="ipa" ph="ɡuː">Gu</phoneme> Worm'],
+      [/\bGu Master/g, '<phoneme alphabet="ipa" ph="ɡuː">Gu</phoneme> Master'],
+      [/\b(?<![A-Za-z])Gu\b/g, '<phoneme alphabet="ipa" ph="ɡuː">Gu</phoneme>'],
+      // Places
+      [/\bLuo Po Valley\b/g, '<phoneme alphabet="ipa" ph="lwɔː pɔː">Luo Po</phoneme> Valley'],
+      [/\bDang Hun Mountain\b/g, '<phoneme alphabet="ipa" ph="dɑːŋ hʊn">Dang Hun</phoneme> Mountain'],
+      [/\bOrdinary Abyss\b/g, 'Ordinary Abyss'],
+      [/\bQian Kun Crystal Wall\b/g, '<phoneme alphabet="ipa" ph="tɕjɛn kʊn">Qian Kun</phoneme> Crystal Wall'],
+      [/\bReverse Flow River\b/g, 'Reverse Flow River'],
+      [/\bCheng Bai Mountain\b/g, '<phoneme alphabet="ipa" ph="tʂʌŋ baɪ">Cheng Bai</phoneme> Mountain'],
+      // Misc
+      [/\bPredicament(s?)\b/g, 'Predicament$1'],
+      [/\bTribulation(s?)\b/g, 'Tribulation$1'],
+      [/\bSamsara\b/g, '<phoneme alphabet="ipa" ph="sæmˈsɑːrə">Samsara</phoneme>'],
+    ];
+    let processed = esc(text);
+    for (const [re, rep] of subs) {
+      processed = processed.replace(re, rep);
+    }
+    // Wrap in SSML with appropriate speaking rate
+    const rate = "0.95";
+    const pitch = voiceGender === "female" ? "0st" : "-2st";
+    return `<speak><prosody rate="${rate}" pitch="${pitch}">${processed}</prosody></speak>`;
   }
-  function audioSrc(c, v) {
-    return c ? `audio/ch${audioSlug(c.num)}-${v}.mp3` : "";
-  }
+
   function toggleAudio() {
     const el = audioElRef.current;
     if (!el) return;
@@ -515,22 +551,43 @@ function RenZuReader() {
   }
   function switchVoice(v) {
     if (v === voice) return;
-    const el = audioElRef.current;
-    const wasPlaying = audioPlaying;
-    const t = el ? el.currentTime : 0;
     setAudioError(false);
+    setAudioPlaying(false);
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.src = ""; }
     setVoice(v);
-    setTimeout(() => {
-      if (!audioElRef.current) return;
-      audioElRef.current.currentTime = t;
-      if (wasPlaying) audioElRef.current.play().catch(() => setAudioError(true));
-    }, 50);
   }
-  // Stop and reset narration whenever the open chapter changes.
+  // Synthesize via Google Cloud TTS when chapter selected or voice changed
   useEffect(() => {
     setAudioPlaying(false); setAudioError(false);
-    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.currentTime = 0; }
-  }, [selected]);
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.src = ""; }
+    if (!selected) return;
+    // Synthesize via serverless function /api/tts
+    let cancelled = false;
+    (async () => {
+      try {
+        const ssml = buildSSML(selected.body, voice);
+        const voiceName = voice === "female"
+          ? "en-GB-Neural2-C"   // British female
+          : "en-GB-Neural2-B";  // British male
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ssml, voiceName, languageCode: "en-GB" }),
+        });
+        if (cancelled) return;
+        if (!res.ok) throw new Error("TTS request failed");
+        const blob = await res.blob();
+        if (cancelled) return;
+        if (audioElRef.current) {
+          const url = URL.createObjectURL(blob);
+          audioElRef.current.src = url;
+        }
+      } catch {
+        if (!cancelled) setAudioError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selected, voice]);
 
   function select(c) {
     setSelected(c); setAiResponse(""); setAiQuestion("");
@@ -592,7 +649,7 @@ function RenZuReader() {
       ? selected.body.slice(0, MAX_CHARS) + "\n\n[…chapter truncated for length…]"
       : selected.body;
 
-    const userMsg = `Chapter ${selected.num}: "${selected.title}"\n\nChapter text:\n${bodyForAI}\n\nQuestion: ${question}`;
+    const userMsg = `Part ${selected.num}: "${selected.title}"\n\nText:\n${bodyForAI}\n\nQuestion: ${question}`;
 
     try {
       const res = await fetch("/api/ai-chat", {
@@ -997,15 +1054,16 @@ function RenZuReader() {
 
             {/* ── SOCIAL LINKS ── */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 32 }}>
-              <div style={{
-                fontFamily: "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
-                fontStyle: "italic", fontWeight: 500, fontSize: 14,
-                color: textDim, letterSpacing: "0.1em",
-                transform: "rotate(-4deg)", marginBottom: -8,
-              }}>
-                Created by
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{
+                  fontFamily: "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
+                  fontStyle: "italic", fontWeight: 500, fontSize: 14,
+                  color: textDim, letterSpacing: "0.1em",
+                }}>
+                  Created by
+                </div>
+                <img src={IMG_LOGO} alt="The Omniarch" style={{ width: 110, height: 110, objectFit: "contain", filter: "drop-shadow(0 6px 24px rgba(212,168,60,0.45))" }} />
               </div>
-              <img src={IMG_LOGO} alt="The Omniarch" style={{ width: 110, height: 110, objectFit: "contain", filter: "drop-shadow(0 6px 24px rgba(212,168,60,0.45))" }} />
               <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
                 {[
                   { label: "Discord", href: "https://discord.com/invite/DunazTeMSA", Icon: DiscordIcon },
@@ -1073,7 +1131,7 @@ function RenZuReader() {
                   <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>
                     {audioError ? "Narration unavailable" : "Listen — British English"}
                   </span>
-                  <audio ref={audioElRef} src={audioSrc(selected, voice)} preload="none"
+                  <audio ref={audioElRef} preload="auto"
                     onPlay={() => setAudioPlaying(true)}
                     onPause={() => setAudioPlaying(false)}
                     onEnded={() => setAudioPlaying(false)}
