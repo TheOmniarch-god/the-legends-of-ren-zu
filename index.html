@@ -485,6 +485,8 @@ function RenZuReader() {
   const sentenceIndexRef = useRef(0);
   const sentencesRef = useRef([]);
   const playbackActiveRef = useRef(false);
+  const audioContextRef = useRef(null);
+  const currentSourceRef = useRef(null);
   const aiRef    = useRef(null);
   const customRef = useRef(null);
   const topRef   = useRef(null);
@@ -503,42 +505,133 @@ function RenZuReader() {
     }, 300);
   }
 
-  // ── Web Speech TTS — sentence-streaming for seamless, natural narration ────────
-  // Picks the best available neural voice (Microsoft Aria, Google US English, etc.)
-  // Chains sentences so there are no gaps between them. Works offline, zero download.
+  // ── Gemini TTS — neural voices via Google Cloud ──────────────────────────
+  // Uses the Gemini TTS API for high-quality neural voices.
+  // Chains sentences for seamless, natural narration.
 
-  function getBestVoice(preferFemale) {
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return null;
-
-    // Priority-ordered voice name fragments — neural/natural voices first
-    const femalePriority = [
-      "aria", "jenny", "michelle", "sonia", "susan", "zira",
-      "google us english", "samantha", "karen", "moira",
-      "female", "woman", "girl",
-    ];
-    const malePriority = [
-      "guy", "ryan", "eric", "mark", "william", "reed",
-      "google uk english male", "daniel", "alex", "oliver",
-      "male", "man",
-    ];
-    const priority = preferFemale ? femalePriority : malePriority;
-
-    // Filter to English voices
-    const enVoices = voices.filter(v => v.lang && v.lang.startsWith("en"));
-    if (!enVoices.length) return voices[0];
-
-    for (const kw of priority) {
-      const match = enVoices.find(v => v.name.toLowerCase().includes(kw));
-      if (match) return match;
+  function stopAllAudio() {
+    playbackActiveRef.current = false;
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
-    // Fallback: first English voice of the right gender hint, then any English
-    return enVoices[0];
+    if (currentSourceRef.current) {
+      try { currentSourceRef.current.stop(); } catch (_) {}
+      currentSourceRef.current = null;
+    }
+    sentencesRef.current = [];
+    sentenceIndexRef.current = 0;
   }
 
-  // Split text into sentences that each fit in one SpeechSynthesisUtterance.
-  // The Web Speech API silently truncates at ~32KB and some engines choke on
-  // long strings, so we cap each chunk and avoid splitting mid-word.
+  async function playAudioFromBlob(audioBlob) {
+    if (!audioBlob || audioBlob.size === 0) return;
+    
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      
+      // Create audio context if needed
+      if (!audioContextRef.current) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) {
+          throw new Error("Web Audio API not supported");
+        }
+        audioContextRef.current = new AudioContext();
+      }
+      const ctx = audioContextRef.current;
+      
+      // Decode audio data
+      let decoded;
+      if (ctx.decodeAudioData.length > 2) {
+        // Callback-based API (older browsers)
+        decoded = await new Promise((resolve, reject) => {
+          ctx.decodeAudioData(
+            arrayBuffer,
+            resolve,
+            reject
+          );
+        });
+      } else {
+        // Promise-based API (modern browsers)
+        decoded = await ctx.decodeAudioData(arrayBuffer);
+      }
+      
+      // Create source and play
+      const source = ctx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(ctx.destination);
+      
+      currentSourceRef.current = source;
+      
+      // Resolve when audio finishes
+      return new Promise((resolve) => {
+        source.onended = resolve;
+        source.start(0);
+      });
+    } catch (err) {
+      console.error("Audio playback error:", err);
+      throw err;
+    }
+  }
+
+  async function speakNextSentence() {
+    if (!playbackActiveRef.current) return;
+    
+    const sentences = sentencesRef.current;
+    const idx = sentenceIndexRef.current;
+    
+    if (idx >= sentences.length) {
+      setAudioPlaying(false);
+      setAudioLoading(false);
+      playbackActiveRef.current = false;
+      return;
+    }
+
+    try {
+      // Fetch audio for this sentence
+      const ttsRes = await fetch("/api/ai-chat-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: sentences[idx],
+          voice: voice
+        })
+      });
+
+      if (!ttsRes.ok) {
+        throw new Error(`TTS failed: ${ttsRes.status}`);
+      }
+
+      const audioBlob = await ttsRes.blob();
+      
+      // Notify that playback started (only on first sentence)
+      if (idx === 0) {
+        setAudioLoading(false);
+        setAudioPlaying(true);
+      }
+
+      // Play the audio
+      await playAudioFromBlob(audioBlob);
+
+      // Move to next sentence
+      if (playbackActiveRef.current) {
+        sentenceIndexRef.current = idx + 1;
+        speakNextSentence().catch(err => {
+          console.error("Sentence playback failed:", err);
+          setAudioError(true);
+          setAudioLoading(false);
+        });
+      }
+    } catch (err) {
+      console.error("TTS error:", err);
+      setAudioError(true);
+      setAudioStatus("Audio playback failed");
+      setAudioLoading(false);
+      setAudioPlaying(false);
+      playbackActiveRef.current = false;
+    }
+  }
+
+  // Split text into sentences
   function splitSentences(text, maxLen = 220) {
     const raw = text.replace(/\n+/g, " ");
     const parts = raw.match(/[^.!?…]+[.!?…]*["'»\s]*/g) || [raw];
@@ -555,110 +648,26 @@ function RenZuReader() {
     return out;
   }
 
-  function stopAllAudio() {
-    playbackActiveRef.current = false;
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      try { window.speechSynthesis.cancel(); } catch (_) {}
-    }
-    utteranceRef.current = null;
-    sentencesRef.current = [];
-    sentenceIndexRef.current = 0;
-  }
-
-  function speakNextSentence() {
-    if (!playbackActiveRef.current) return;
-    const sentences = sentencesRef.current;
-    const idx = sentenceIndexRef.current;
-    if (idx >= sentences.length) {
-      // All done
-      setAudioPlaying(false);
-      setAudioLoading(false);
-      playbackActiveRef.current = false;
-      return;
-    }
-    const utt = new SpeechSynthesisUtterance(sentences[idx]);
-    const preferFemale = voice === "female";
-    const chosenVoice = getBestVoice(preferFemale);
-    if (chosenVoice) utt.voice = chosenVoice;
-    utt.rate = 0.92;   // slightly slower = more dramatic/readable
-    utt.pitch = preferFemale ? 1.05 : 0.92;
-    utt.volume = 1;
-
-    utt.onstart = () => {
-      if (idx === 0) {
-        setAudioLoading(false);
-        setAudioPlaying(true);
-      }
-    };
-    utt.onend = () => {
-      if (!playbackActiveRef.current) return;
-      sentenceIndexRef.current = idx + 1;
-      speakNextSentence();
-    };
-    utt.onerror = (e) => {
-      // 'interrupted' fires when we call cancel() — not a real error
-      if (e.error === "interrupted" || e.error === "canceled") return;
-      console.warn("SpeechSynthesis error:", e.error);
-      if (!playbackActiveRef.current) return;
-      // Skip this sentence and continue
-      sentenceIndexRef.current = idx + 1;
-      speakNextSentence();
-    };
-    utteranceRef.current = utt;
-    if (window.speechSynthesis) window.speechSynthesis.speak(utt);
-  }
-
   function toggleAudio() {
     if (audioLoading) return;
-    if (!("speechSynthesis" in window)) {
-      setAudioError(true);
-      setAudioStatus("Not supported in this browser");
-      return;
-    }
-
-    // Pause / resume
-    if (audioPlaying) {
-      if (window.speechSynthesis) window.speechSynthesis.pause();
-      setAudioPlaying(false);
-      return;
-    }
-    if (window.speechSynthesis?.paused && playbackActiveRef.current) {
-      window.speechSynthesis.resume();
-      setAudioPlaying(true);
-      return;
-    }
 
     // Fresh start
     if (!selected) return;
+    
     stopAllAudio();
     setAudioError(false);
     setAudioLoading(true);
     setAudioStatus("");
+    setAudioPlaying(false);
 
-    // Voices may not be loaded yet on first call — wait for them
-    function startWhenReady() {
-      playbackActiveRef.current = true;
-      sentencesRef.current = splitSentences(selected.body);
-      sentenceIndexRef.current = 0;
-      speakNextSentence();
-    }
-
-    const voices = window.speechSynthesis?.getVoices() || [];
-    if (voices.length > 0) {
-      startWhenReady();
-    } else {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          window.speechSynthesis.onvoiceschanged = null;
-          startWhenReady();
-        };
-      }
-      // Fallback if onvoiceschanged never fires (Firefox)
-      setTimeout(() => {
-        if (playbackActiveRef.current) return;
-        startWhenReady();
-      }, 500);
-    }
+    playbackActiveRef.current = true;
+    sentencesRef.current = splitSentences(selected.body);
+    sentenceIndexRef.current = 0;
+    speakNextSentence().catch(err => {
+      console.error("Audio playback failed:", err);
+      setAudioError(true);
+      setAudioLoading(false);
+    });
   }
 
   function switchVoice(v) {
