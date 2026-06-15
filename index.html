@@ -796,16 +796,18 @@ function RenZuReader() {
           setAudioLoading(false);
           setAudioStatus("");
         } else if (type === 'error') {
+          console.error('Kokoro TTS error:', e.data.message);
           setAudioLoading(false);
-          setAudioStatus("");
+          setAudioStatus(e.data.message || "");
           setAudioError(true);
           setAudioPlaying(false);
           playbackActiveRef.current = false;
         }
       };
-      worker.onerror = () => {
+      worker.onerror = (err) => {
+        console.error('Kokoro worker error:', err.message, err);
         setAudioLoading(false);
-        setAudioStatus("");
+        setAudioStatus(err.message || "");
         setAudioError(true);
         setAudioPlaying(false);
         playbackActiveRef.current = false;
@@ -1388,9 +1390,9 @@ function RenZuReader() {
                         }}>{v === "female" ? "Emma" : "Lewis"}</button>
                       ))}
                     </div>
-                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>
+                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {audioError
-                        ? "Narration unavailable"
+                        ? (audioStatus ? audioStatus.slice(0,60) : "Narration unavailable")
                         : audioPlaying
                           ? "Narrating…"
                           : audioLoading
