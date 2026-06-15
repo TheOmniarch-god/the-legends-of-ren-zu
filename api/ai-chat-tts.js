@@ -48,8 +48,6 @@ export default async function handler(req, res) {
         input: {
           text,
           voice: piperVoice,
-          // speaking_rate accepted by this model version (1.0 = normal)
-          speaking_rate: 0.92,
         },
       }),
     });
@@ -79,8 +77,9 @@ export default async function handler(req, res) {
     }
 
     if (prediction.status !== "succeeded" || !prediction.output) {
-      console.error("Replicate prediction did not succeed:", prediction.status, prediction.error);
-      return res.status(502).json({ error: "TTS prediction failed or timed out" });
+      const replicateErr = prediction.error || `status: ${prediction.status}`;
+      console.error("Replicate prediction did not succeed:", replicateErr);
+      return res.status(502).json({ error: `TTS prediction failed: ${replicateErr}` });
     }
 
     // ── Step 3: fetch the WAV file Replicate produced ────────────────────────
