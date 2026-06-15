@@ -1,7 +1,7 @@
 // api/ai-chat-tts.js
 //
-// Separate TTS endpoint for Vercel serverless functions
-// Handles Google Gemini text-to-speech requests
+// Fixed TTS endpoint for Vercel serverless functions
+// Handles Google Gemini text-to-speech requests with proper audio encoding
 //
 
 function createWavHeader(audioDataLength) {
@@ -69,6 +69,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing 'text' field" });
   }
 
+  if (text.length > 5000) {
+    return res.status(400).json({ error: "Text too long (max 5000 characters)" });
+  }
+
   try {
     const ttsRes = await fetch(
       `https://texttospeech.googleapis.com/v1/text:synthesize?key=${geminiKey}`,
@@ -85,7 +89,8 @@ export default async function handler(req, res) {
             audioEncoding: "LINEAR16",
             sampleRateHertz: 24000,
             pitch: voice === "male" ? -5 : 0,
-            speakingRate: 0.92
+            speakingRate: 0.92,
+            effectsProfileId: ["small-bluetooth-speaker-class-device"]
           }
         })
       }
@@ -94,22 +99,39 @@ export default async function handler(req, res) {
     if (!ttsRes.ok) {
       const err = await ttsRes.text();
       console.error("Gemini TTS error:", err);
-      throw new Error(`TTS failed: ${ttsRes.status}`);
+      return res.status(ttsRes.status).json({ error: `TTS API error: ${ttsRes.status}` });
     }
 
     const data = await ttsRes.json();
     const base64Audio = data.audioContent;
-    if (!base64Audio) throw new Error("No audio content in response");
+    
+    if (!base64Audio) {
+      console.error("No audio content in Gemini response");
+      return res.status(502).json({ error: "No audio content in response" });
+    }
 
+    // Convert base64 to buffer
     const audioBuffer = Buffer.from(base64Audio, "base64");
+    
+    if (audioBuffer.length === 0) {
+      console.error("Audio buffer is empty");
+      return res.status(502).json({ error: "Audio buffer is empty" });
+    }
+
+    // Prepend WAV header
     const wavHeader = createWavHeader(audioBuffer.length);
     const wavData = Buffer.concat([wavHeader, audioBuffer]);
 
+    // Send with proper headers
     res.setHeader("Content-Type", "audio/wav");
-    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Content-Length", wavData.length);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    
     return res.send(wavData);
   } catch (err) {
-    console.error("TTS error:", err.message);
+    console.error("TTS handler error:", err.message);
     return res.status(502).json({ error: "TTS service failed: " + err.message });
   }
 }
