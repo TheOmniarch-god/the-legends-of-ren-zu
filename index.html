@@ -554,12 +554,12 @@ function RenZuReader() {
   }
 
   async function playAudioFromBlob(audioBlob, myChainId) {
-    if (!audioBlob || audioBlob.size === 0) return;
+    if (!audioBlob || audioBlob.size === 0) return true;
     // Abort if this chain is stale
-    if (chainIdRef.current !== myChainId) return;
+    if (chainIdRef.current !== myChainId) return false;
 
     const arrayBuffer = await audioBlob.arrayBuffer();
-    if (chainIdRef.current !== myChainId) return;
+    if (chainIdRef.current !== myChainId) return false;
 
     if (!audioContextRef.current) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -568,21 +568,25 @@ function RenZuReader() {
     }
     const ctx = audioContextRef.current;
     if (ctx.state === "suspended") await ctx.resume();
-    if (chainIdRef.current !== myChainId) return;
+    if (chainIdRef.current !== myChainId) return false;
 
     const decoded = await new Promise((resolve, reject) =>
       ctx.decodeAudioData(arrayBuffer, resolve, reject)
     );
 
-    if (chainIdRef.current !== myChainId) return;
+    if (chainIdRef.current !== myChainId) return false;
 
     const source = ctx.createBufferSource();
     source.buffer = decoded;
     source.connect(ctx.destination);
     currentSourceRef.current = source;
 
+    // Returns true if played to completion; false if stopped early (e.g. paused/stopped)
     return new Promise((resolve) => {
-      source.onended = resolve;
+      source.onended = () => {
+        // If we're currently paused, the source was stopped early by toggleAudio
+        resolve(!pausedRef.current && chainIdRef.current === myChainId);
+      };
       source.start(0);
     });
   }
@@ -626,16 +630,30 @@ function RenZuReader() {
 
         if (idx === 0) { setAudioLoading(false); setAudioPlaying(true); }
 
-        // Wait while paused — the AudioContext is suspended so no sound plays;
-        // we just hold here until resumed or stopped.
+        // Wait while paused — audio blob is already fetched, we just hold here.
+        // The AudioContext is suspended so nothing plays while we wait.
         while (pausedRef.current) {
           if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
           await new Promise(r => setTimeout(r, 80));
         }
         if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
 
-        await playAudioFromBlob(audioBlob, myChainId);
+        // Play the sentence. Returns true if it completed naturally, false if stopped mid-way.
+        const completedNaturally = await playAudioFromBlob(audioBlob, myChainId);
+
         if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+
+        if (!completedNaturally) {
+          // Paused mid-sentence — enter the wait-loop WITHOUT advancing the index.
+          // When resumed, the loop will re-fetch and re-play the same sentence from the start.
+          while (pausedRef.current) {
+            if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+            await new Promise(r => setTimeout(r, 80));
+          }
+          if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+          // Don't advance idx — loop back to re-fetch & play this sentence again
+          continue;
+        }
 
         sentenceIndexRef.current = idx + 1;
         // loop continues to next sentence
