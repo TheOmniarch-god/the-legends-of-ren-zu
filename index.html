@@ -702,8 +702,11 @@ function RenZuReader() {
   const longPressTimerRef = useRef(null);
   const longPressActiveIdxRef = useRef(-1);
   const longPressMoved = useRef(false);
+  const longPressStartPos = useRef({ x: 0, y: 0 });
+  const tappedSentenceIdxRef = useRef(-1); // mirrors tappedSentenceIdx, read inside the timer closure
 
   const LONG_PRESS_MS = 420;
+  const LONG_PRESS_MOVE_THRESHOLD = 8; // px — ignore sub-pixel tremor, only cancel on real movement
 
   function cancelLongPress() {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
@@ -714,13 +717,14 @@ function RenZuReader() {
     if (e.button !== undefined && e.button !== 0) return;
     longPressMoved.current = false;
     longPressActiveIdxRef.current = sentenceIdx;
+    longPressStartPos.current = { x: e.clientX, y: e.clientY };
     cancelLongPress();
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null;
       if (longPressMoved.current) return; // finger drifted — it was a scroll
       // Haptic feedback on supported devices
       if (navigator.vibrate) navigator.vibrate(32);
-      if (tappedSentenceIdx === sentenceIdx) {
+      if (tappedSentenceIdxRef.current === sentenceIdx) {
         // Long press same sentence = dismiss
         setTappedSentenceIdx(-1);
         setSelectionMenu(null);
@@ -732,9 +736,14 @@ function RenZuReader() {
   }
 
   function handleSentencePointerMove(e) {
-    // If pointer moved more than ~6px, treat as scroll — kill the timer
-    if (!longPressMoved.current) longPressMoved.current = true;
-    cancelLongPress();
+    // Only treat as a scroll once the pointer has actually traveled past the
+    // threshold — tiny sub-pixel jitter on mobile shouldn't kill the timer.
+    const dx = e.clientX - longPressStartPos.current.x;
+    const dy = e.clientY - longPressStartPos.current.y;
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
+      longPressMoved.current = true;
+      cancelLongPress();
+    }
   }
 
   function handleSentencePointerUp() {
@@ -742,7 +751,6 @@ function RenZuReader() {
   }
 
   // ── Dismiss on tap outside (not inside popup, not on a sentence span) ──
-  const tappedSentenceIdxRef = useRef(-1);
   const selectionMenuRef = useRef(null);
   useEffect(() => { tappedSentenceIdxRef.current = tappedSentenceIdx; }, [tappedSentenceIdx]);
   useEffect(() => { selectionMenuRef.current = selectionMenu; }, [selectionMenu]);
