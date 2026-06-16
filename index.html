@@ -1221,14 +1221,17 @@ function RenZuReader() {
                 <div style={{ marginTop: 18 }}>
                   {(() => {
                     const VOICES = [
-                      { key: "en-US-Neural2-D", name: "Aldric",   gender: "♂", desc: "Deep · Commanding" },
-                      { key: "en-US-Neural2-A", name: "Callen",   gender: "♂", desc: "Warm · Storyteller" },
-                      { key: "en-US-Neural2-I", name: "Emryn",    gender: "♂", desc: "Clear · Steady" },
-                      { key: "en-US-Neural2-J", name: "Gareth",   gender: "♂", desc: "Rich · Resonant" },
-                      { key: "en-US-Neural2-C", name: "Seraphine",gender: "♀", desc: "Mature · Authoritative" },
-                      { key: "en-US-Neural2-E", name: "Lyra",     gender: "♀", desc: "Expressive · Vivid" },
-                      { key: "en-US-Neural2-G", name: "Mireille", gender: "♀", desc: "Soft · Ethereal" },
-                      { key: "en-US-Neural2-H", name: "Vashti",   gender: "♀", desc: "Bright · Precise" },
+                      { key: "en-US-Neural2-D", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸" },
+                      { key: "en-US-Neural2-A", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸" },
+                      { key: "en-US-Neural2-J", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸" },
+                      { key: "en-US-Neural2-I", name: "Emryn",     gender: "♂", desc: "Clear · Steady",        accent: "🇺🇸" },
+                      { key: "en-GB-Neural2-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧" },
+                      { key: "en-US-Neural2-C", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸" },
+                      { key: "en-US-Neural2-E", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸" },
+                      { key: "en-US-Neural2-G", name: "Mireille",  gender: "♀", desc: "Soft · Ethereal",       accent: "🇺🇸" },
+                      { key: "en-US-Neural2-H", name: "Vashti",    gender: "♀", desc: "Bright · Precise",      accent: "🇺🇸" },
+                      { key: "en-GB-Neural2-A", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧" },
+                      { key: "en-GB-Neural2-F", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧" },
                     ];
                     const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
                     return (
@@ -1272,6 +1275,7 @@ function RenZuReader() {
                           >
                             <span style={{ fontSize: 13 }}>{activeVoice.gender}</span>
                             <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>{activeVoice.name}</span>
+                            <span style={{ fontSize: 11 }}>{activeVoice.accent}</span>
                             <span style={{ fontSize: 9, color: textDim, letterSpacing: "0.06em" }}>{activeVoice.desc}</span>
                             <span style={{ fontSize: 9, color: textDim, marginLeft: 2, transition: "transform 0.2s", display: "inline-block", transform: voicePickerOpen ? "rotate(180deg)" : "none" }}>▼</span>
                           </button>
@@ -1310,8 +1314,9 @@ function RenZuReader() {
                                 onMouseEnter={e => e.currentTarget.style.background = D ? "rgba(255,255,255,0.06)" : S ? "rgba(101,66,20,0.10)" : "rgba(0,0,0,0.04)"}
                                 onMouseLeave={e => e.currentTarget.style.background = voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent"}
                               >
-                                <span style={{ fontSize: 14 }}>{v.gender}</span>
+                                <span style={{ fontSize: 13 }}>{v.gender}</span>
                                 <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 68 }}>{v.name}</span>
+                                <span style={{ fontSize: 13 }}>{v.accent}</span>
                                 <span style={{ fontSize: 10, color: textDim }}>{v.desc}</span>
                               </button>
                             ))}
@@ -1328,8 +1333,9 @@ function RenZuReader() {
                                 onMouseEnter={e => e.currentTarget.style.background = D ? "rgba(255,255,255,0.06)" : S ? "rgba(101,66,20,0.10)" : "rgba(0,0,0,0.04)"}
                                 onMouseLeave={e => e.currentTarget.style.background = voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent"}
                               >
-                                <span style={{ fontSize: 14 }}>{v.gender}</span>
+                                <span style={{ fontSize: 13 }}>{v.gender}</span>
                                 <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 68 }}>{v.name}</span>
+                                <span style={{ fontSize: 13 }}>{v.accent}</span>
                                 <span style={{ fontSize: 10, color: textDim }}>{v.desc}</span>
                               </button>
                             ))}
