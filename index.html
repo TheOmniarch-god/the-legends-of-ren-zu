@@ -443,6 +443,18 @@ function highlight(text, q) {
   );
 }
 
+// Theme-aware highlight — scroll mode uses a darker mark so it contrasts against parchment
+function highlightThemed(text, q, S, D) {
+  if (!q) return text;
+  const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+  const bg = S ? 'rgba(80,38,4,0.55)' : D ? 'rgba(200,180,255,0.35)' : 'rgba(212,168,60,0.45)';
+  const color = S ? '#f5e6c8' : 'inherit';
+  return parts.map((p, i) => p.toLowerCase() === q.toLowerCase()
+    ? <mark key={i} style={{ background: bg, color, borderRadius: 2, padding: '0 1px' }}>{p}</mark>
+    : p
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 function RenZuReader() {
   // ── Font loader — runs in user's browser, not sandbox
@@ -687,38 +699,56 @@ function RenZuReader() {
     return out;
   }
 
-  // ── Selection popup — fires after user lifts mouse/touch inside the chapter canvas ──
-  function handleCanvasMouseUp(e) {
-    const delay = e.type === "touchend" ? 120 : 10;
-    setTimeout(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setSelectionMenu(null);
-        return;
-      }
-      const selectedText = sel.toString().trim();
-      if (selectedText.length < 2) { setSelectionMenu(null); return; }
+  // ── Selection popup — uses selectionchange event so we never compete with
+  //    the browser's native context menu on mobile. A settle-timeout fires
+  //    ~400 ms after the user stops changing the selection; if the selection
+  //    is non-empty AND the anchor node is inside the chapter canvas, we show
+  //    the popup. This works on both desktop and mobile without any touchend.
+  useEffect(() => {
+    if (!selected) return;
+    let settleTimer = null;
 
-      if (sentencesRef.current.length === 0 && selected) {
-        sentencesRef.current = splitSentences(selected.body);
-      }
-      const allSentences = sentencesRef.current;
-      let startIdx = 0;
-      const probe = selectedText.slice(0, 30);
-      for (let i = 0; i < allSentences.length; i++) {
-        if (allSentences[i].includes(probe)) { startIdx = i; break; }
-      }
+    function onSelectionChange() {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) { setSelectionMenu(null); return; }
+        const selectedText = sel.toString().trim();
+        if (selectedText.length < 2) { setSelectionMenu(null); return; }
 
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setSelectionMenu({
-        vx: rect.left + rect.width / 2,
-        vy: rect.top,
-        text: selectedText,
-        sentenceIdx: startIdx,
-      });
-    }, delay);
-  }
+        // Only show if selection is inside the chapter canvas
+        const canvas = chapterCanvasRef.current;
+        if (!canvas) return;
+        const anchorNode = sel.anchorNode;
+        if (!anchorNode || !canvas.contains(anchorNode)) { setSelectionMenu(null); return; }
+
+        if (sentencesRef.current.length === 0) {
+          sentencesRef.current = splitSentences(selected.body);
+        }
+        const allSentences = sentencesRef.current;
+        let startIdx = 0;
+        const probe = selectedText.slice(0, 30);
+        for (let i = 0; i < allSentences.length; i++) {
+          if (allSentences[i].includes(probe)) { startIdx = i; break; }
+        }
+
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setSelectionMenu({
+          vx: rect.left + rect.width / 2,
+          vy: rect.top,
+          text: selectedText,
+          sentenceIdx: startIdx,
+        });
+      }, 400);
+    }
+
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      clearTimeout(settleTimer);
+      document.removeEventListener("selectionchange", onSelectionChange);
+    };
+  }, [selected]);
 
   function toggleAudio() {
     if (audioLoading) return;
@@ -894,7 +924,7 @@ function RenZuReader() {
     return () => document.removeEventListener("copy", onCopy);
   }, [selected]);
 
-  // ── Dismiss selection menu on outside click or scroll ──
+  // ── Dismiss selection menu on outside click, scroll, or selection clear ──
   useEffect(() => {
     if (!selectionMenu) return;
     function dismiss(e) {
@@ -1066,12 +1096,12 @@ function RenZuReader() {
             outline: `1.5px solid ${D ? "rgba(180,160,255,0.4)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
             transition: "background 0.3s",
           } : { transition: "background 0.3s" }}>
-            {highlight(s, query)}{" "}
+            {highlightThemed(s, query, S, D)}{" "}
           </span>
         ));
       }
     }
-    return <React.Fragment>{highlight(restOfBody, query)}</React.Fragment>;
+    return <React.Fragment>{highlightThemed(restOfBody, query, S, D)}</React.Fragment>;
   }
 
   // Scroll progress bar color
@@ -1317,10 +1347,10 @@ function RenZuReader() {
                   <div style={{ padding: "19px 20px 19px 22px", position: "relative" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
                       <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: textDim, paddingRight: 10, borderRight: `1px solid ${border}`, lineHeight: 1, fontFamily: headFont }}>Part {c.num}</span>
-                      <span style={{ fontSize: 16, fontWeight: 600, fontFamily: headFont, color: text, letterSpacing: S ? "0.02em" : "-0.01em", lineHeight: 1.3 }}>{highlight(c.title, query)}</span>
+                      <span style={{ fontSize: 16, fontWeight: 600, fontFamily: headFont, color: text, letterSpacing: S ? "0.02em" : "-0.01em", lineHeight: 1.3 }}>{highlightThemed(c.title, query, S, D)}</span>
                     </div>
                     <div style={{ fontSize: 12.5, color: textMid, lineHeight: 1.68, maxWidth: "80%", fontFamily: bodyFont }}>
-                      {highlight(c.body.slice(0, 135).replace(/\n/g, " "), query)}…
+                      {highlightThemed(c.body.slice(0, 135).replace(/\n/g, " "), query, S, D)}…
                     </div>
                     {c.tags.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 11 }}>
@@ -1388,19 +1418,7 @@ function RenZuReader() {
                     ];
                     const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
                     return (
-                      <div>
-                        <div style={{ 
-                          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-                          position: headerSticky ? "sticky" : "relative",
-                          top: 0,
-                          zIndex: headerSticky ? 90 : "auto",
-                          background: headerSticky ? (D ? "rgba(20,20,25,0.92)" : S ? "rgba(236,232,222,0.92)" : "rgba(255,255,255,0.92)") : "transparent",
-                          backdropFilter: headerSticky ? "blur(10px)" : "none",
-                          padding: headerSticky ? "12px 18px" : "0",
-                          borderBottom: headerSticky ? `1px solid ${border}` : "none",
-                          transition: "all 0.3s ease",
-                          boxShadow: headerSticky ? (D ? "0 4px 12px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.08)") : "none",
-                        }}>
+                      <div style={{ ...sq(20), padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                           {/* Play/pause button */}
                           <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause" : audioPaused ? "Resume" : "Play"}
                             disabled={audioLoading}
@@ -1472,7 +1490,6 @@ function RenZuReader() {
                               : audioLoading ? "Summoning…"
                               : ""}
                           </span>
-                        </div>
 
                         {/* Voice picker dropdown with region tabs and highlight feature */}
                         {voicePickerOpen && (
@@ -1550,62 +1567,52 @@ function RenZuReader() {
               </div>
             </div>
 
-            <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative", userSelect: "text" }}
-              onMouseUp={handleCanvasMouseUp}
-              onTouchEnd={handleCanvasMouseUp}
-            >
-              {/* ── Selection popup menu ── */}
-              {selectionMenu && (
-                <div id="sel-menu-popup" style={{
-                  position: "fixed",
-                  left: Math.min(Math.max(selectionMenu.vx, 100), window.innerWidth - 100),
-                  top: Math.max(selectionMenu.vy - 60, 8),
-                  transform: "translateX(-50%)",
-                  zIndex: 9999,
-                  display: "flex",
-                  gap: 4,
-                  background: D ? "rgba(18,18,22,0.97)" : S ? "rgba(42,21,4,0.96)" : "rgba(20,18,16,0.95)",
-                  border: `1px solid ${D ? "rgba(255,255,255,0.12)" : S ? "rgba(180,130,40,0.30)" : "rgba(255,255,255,0.12)"}`,
-                  borderRadius: 10,
-                  padding: "5px 6px",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)",
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
-                  animation: "fadeUp 0.14s ease both",
-                  whiteSpace: "nowrap",
-                }}>
-                  {/* Arrow pointing down */}
-                  <div style={{
-                    position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
-                    width: 10, height: 6, overflow: "hidden",
-                  }}>
-                    <div style={{ width: 10, height: 10, background: D ? "rgba(18,18,22,0.97)" : S ? "rgba(42,21,4,0.96)" : "rgba(20,18,16,0.95)", border: `1px solid ${D ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.12)"}`, transform: "rotate(45deg)", transformOrigin: "top left", marginTop: -5, marginLeft: 0 }} />
-                  </div>
-                  {[
-                    { icon: "▶", label: "From here", action: () => readFromHere(selectionMenu.sentenceIdx), title: "Read from this sentence to end" },
-                    { icon: "◉", label: "Selection", action: () => readSelection(selectionMenu.text), title: "Read only selected text" },
-                    { icon: "✦", label: "Ask AI",    action: () => { setSelectionMenu(null); window.getSelection()?.removeAllRanges(); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } }, title: "Send to AI Scholar" },
-                    { icon: "⎘", label: "Copy",      action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); window.getSelection()?.removeAllRanges(); }, title: "Copy with attribution" },
-                  ].map(({ icon, label, action, title }) => (
-                    <button key={label} onClick={action} title={title}
-                      style={{
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: "rgba(255,255,255,0.88)", fontFamily: headFont,
-                        fontSize: 10, letterSpacing: "0.06em",
-                        padding: "5px 9px", borderRadius: 6,
-                        display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                        transition: "background 0.12s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.10)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: 12 }}>{icon}</span>
-                      <span style={{ fontSize: 8, opacity: 0.7, letterSpacing: "0.08em" }}>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* ── Selection action bar — fixed to bottom so it never fights the browser context menu ── */}
+            {selectionMenu && (
+              <div id="sel-menu-popup" style={{
+                position: "fixed",
+                bottom: 28,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 9999,
+                display: "flex",
+                gap: 2,
+                background: D ? "rgba(18,18,22,0.97)" : S ? "rgba(42,21,4,0.96)" : "rgba(20,18,16,0.95)",
+                border: `1px solid ${D ? "rgba(255,255,255,0.14)" : S ? "rgba(180,130,40,0.35)" : "rgba(255,255,255,0.14)"}`,
+                borderRadius: 16,
+                padding: "6px 8px",
+                boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                animation: "fadeUp 0.18s ease both",
+                whiteSpace: "nowrap",
+              }}>
+                {[
+                  { icon: "▶", label: "From here", action: () => readFromHere(selectionMenu.sentenceIdx) },
+                  { icon: "◉", label: "Selection",  action: () => readSelection(selectionMenu.text) },
+                  { icon: "✦", label: "Ask AI",     action: () => { setSelectionMenu(null); window.getSelection()?.removeAllRanges(); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
+                  { icon: "⎘", label: "Copy",       action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); window.getSelection()?.removeAllRanges(); } },
+                ].map(({ icon, label, action }) => (
+                  <button key={label} onClick={action}
+                    style={{
+                      background: "transparent", border: "none", cursor: "pointer",
+                      color: "rgba(255,255,255,0.90)", fontFamily: headFont,
+                      padding: "7px 14px", borderRadius: 10,
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      transition: "background 0.12s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.10)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span style={{ fontSize: 14 }}>{icon}</span>
+                    <span style={{ fontSize: 8, opacity: 0.65, letterSpacing: "0.10em", textTransform: "uppercase" }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
+            <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative", userSelect: "text" }}
+            >
               <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em" }}>
                 <span className="drop-cap" style={{
                   float: "left", fontSize: 78, lineHeight: 0.75, marginRight: 8, marginTop: 10, marginBottom: 2,
