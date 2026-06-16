@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>The Legends of Ren Zu</title>
   <meta name="description" content="The Legends of Ren Zu — Reverend Insanity by Gu Zhen Ren" />
 
@@ -701,39 +701,52 @@ function RenZuReader() {
   const [tappedSentenceIdx, setTappedSentenceIdx] = useState(-1);
 
   function handleSentenceTap(sentenceIdx, sentenceText) {
+    // Block the document dismiss handler for this same pointerup event
+    blockNextDismissRef.current = true;
     if (tappedSentenceIdx === sentenceIdx) {
       // Second tap on same sentence = dismiss
       setTappedSentenceIdx(-1);
       setSelectionMenu(null);
     } else {
-      setTappedSentenceIdx(sentenceIdx);
-      if (sentencesRef.current.length === 0) {
+      // Always ensure sentences are populated eagerly before setting menu
+      if (sentencesRef.current.length === 0 && selected) {
         sentencesRef.current = splitSentences(selected.body);
       }
+      setTappedSentenceIdx(sentenceIdx);
       setSelectionMenu({ text: sentenceText, sentenceIdx });
     }
   }
 
-  // Dismiss tap selection on outside click/touch
+  // ── Single persistent dismiss handler using refs so it never races ──
+  const tappedSentenceIdxRef = useRef(-1);
+  const selectionMenuRef = useRef(null);
+  // Keep refs in sync with state
+  useEffect(() => { tappedSentenceIdxRef.current = tappedSentenceIdx; }, [tappedSentenceIdx]);
+  useEffect(() => { selectionMenuRef.current = selectionMenu; }, [selectionMenu]);
+
+  // Block flag: set true during the pointerup that opened the menu, cleared after
+  const blockNextDismissRef = useRef(false);
+
   useEffect(() => {
-    if (tappedSentenceIdx < 0) return;
-    function dismiss(e) {
+    function onDocPointerUp(e) {
+      // If this pointerup just opened the menu, skip dismiss
+      if (blockNextDismissRef.current) { blockNextDismissRef.current = false; return; }
+      if (tappedSentenceIdxRef.current < 0 && !selectionMenuRef.current) return;
+      // Don't dismiss if inside the popup
       const popup = document.getElementById("sel-menu-popup");
       if (popup && popup.contains(e.target)) return;
-      // If click is on a sentence span, handleSentenceTap will handle it
-      if (e.target && e.target.dataset && e.target.dataset.sentIdx !== undefined) return;
+      // Don't dismiss if on a sentence span (onPointerUp handles it)
+      let el = e.target;
+      while (el) {
+        if (el.dataset && "sentIdx" in el.dataset) return;
+        el = el.parentElement;
+      }
       setTappedSentenceIdx(-1);
       setSelectionMenu(null);
     }
-    setTimeout(() => {
-      document.addEventListener("mousedown", dismiss);
-      document.addEventListener("touchstart", dismiss);
-    }, 0);
-    return () => {
-      document.removeEventListener("mousedown", dismiss);
-      document.removeEventListener("touchstart", dismiss);
-    };
-  }, [tappedSentenceIdx]);
+    document.addEventListener("pointerup", onDocPointerUp, true);
+    return () => document.removeEventListener("pointerup", onDocPointerUp, true);
+  }, []); // mount once, never re-attach
 
   function toggleAudio() {
     if (audioLoading) return;
@@ -913,24 +926,13 @@ function RenZuReader() {
     return () => document.removeEventListener("copy", onCopy);
   }, [selected]);
 
-  // ── Dismiss selection menu on outside click, scroll, or selection clear ──
+  // ── Dismiss selection menu on scroll ──
   useEffect(() => {
     if (!selectionMenu) return;
-    function dismiss(e) {
-      const popup = document.getElementById("sel-menu-popup");
-      if (popup && popup.contains(e.target)) return;
-      setSelectionMenu(null);
-    }
-    function onScroll() { setSelectionMenu(null); }
-    setTimeout(() => {
-      document.addEventListener("mousedown", dismiss);
-      document.addEventListener("touchstart", dismiss);
-      document.addEventListener("touchmove", onScroll, { passive: true });
-      window.addEventListener("scroll", onScroll, true);
-    }, 0);
+    function onScroll() { setSelectionMenu(null); setTappedSentenceIdx(-1); }
+    document.addEventListener("touchmove", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, true);
     return () => {
-      document.removeEventListener("mousedown", dismiss);
-      document.removeEventListener("touchstart", dismiss);
       document.removeEventListener("touchmove", onScroll);
       window.removeEventListener("scroll", onScroll, true);
     };
@@ -1091,8 +1093,8 @@ function RenZuReader() {
       }
     }
     // Tap-select mode: render every sentence as a tappable span (Evie-style)
-    if (sentencesRef.current.length === 0) {
-      sentencesRef.current = splitSentences(selected ? selected.body : "");
+    if (sentencesRef.current.length === 0 && selected) {
+      sentencesRef.current = splitSentences(selected.body);
     }
     const sentences = sentencesRef.current;
     if (sentences.length > 0) {
@@ -1103,18 +1105,21 @@ function RenZuReader() {
           <span
             key={i}
             data-sent-idx={i}
-            onClick={() => handleSentenceTap(i, s)}
+onPointerUp={e => { e.stopPropagation(); handleSentenceTap(i, s); }}
             style={{
               cursor: "pointer",
               background: isActive
                 ? (D ? "rgba(255,255,255,0.13)" : S ? "rgba(139,94,26,0.20)" : "rgba(212,168,60,0.28)")
                 : "transparent",
               borderRadius: 3,
-              outline: isActive
-                ? `1.5px solid ${D ? "rgba(255,255,255,0.28)" : S ? "rgba(139,94,26,0.40)" : "rgba(200,150,30,0.48)"}`
+              boxShadow: isActive
+                ? `0 0 0 1.5px ${D ? "rgba(255,255,255,0.28)" : S ? "rgba(139,94,26,0.40)" : "rgba(200,150,30,0.48)"}`
                 : "none",
-              transition: "background 0.18s, outline 0.18s",
+              transition: "background 0.18s, box-shadow 0.18s",
               WebkitTapHighlightColor: "transparent",
+              outline: "none",
+              touchAction: "manipulation",
+              pointerEvents: "auto",
             }}
           >
             {highlightThemed(s, query, S, D)}{" "}
@@ -1188,6 +1193,8 @@ function RenZuReader() {
         .ai-appear { animation: fadeUp 0.42s ease both; }
         .tag-pill:hover { border-color: ${borderHov} !important; color: ${text} !important; }
         .prompt-btn:hover { color: ${text} !important; border-color: ${borderHov} !important; background: ${D ? "rgba(255,255,255,0.05)" : S ? "rgba(80,42,8,0.08)" : "rgba(0,0,0,0.04)"} !important; }
+        span[data-sent-idx] { outline: none !important; -webkit-tap-highlight-color: transparent; }
+        span[data-sent-idx]:focus { outline: none !important; }
       `}</style>
 
       {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
@@ -1594,7 +1601,7 @@ function RenZuReader() {
             {selectionMenu && (
               <div id="sel-menu-popup" style={{
                 position: "fixed",
-                bottom: 28,
+                bottom: "max(28px, env(safe-area-inset-bottom, 28px))",
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 9999,
@@ -1616,19 +1623,21 @@ function RenZuReader() {
                   { icon: "✦", label: "Ask AI",     action: () => { setSelectionMenu(null); setTappedSentenceIdx(-1); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
                   { icon: "⎘", label: "Copy",       action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); setTappedSentenceIdx(-1); } },
                 ].map(({ icon, label, action }) => (
-                  <button key={label} onClick={action}
+                  <button key={label} onClick={action} onPointerUp={e => { e.stopPropagation(); action(); }}
                     style={{
                       background: "transparent", border: "none", cursor: "pointer",
                       color: "rgba(255,255,255,0.90)", fontFamily: headFont,
-                      padding: "7px 14px", borderRadius: 10,
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      padding: "9px 16px", borderRadius: 10,
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                      minWidth: 56,
+                      touchAction: "manipulation",
                       transition: "background 0.12s",
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.10)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
-                    <span style={{ fontSize: 14 }}>{icon}</span>
-                    <span style={{ fontSize: 8, opacity: 0.65, letterSpacing: "0.10em", textTransform: "uppercase" }}>{label}</span>
+                    <span style={{ fontSize: 16 }}>{icon}</span>
+                    <span style={{ fontSize: 9, opacity: 0.7, letterSpacing: "0.10em", textTransform: "uppercase" }}>{label}</span>
                   </button>
                 ))}
               </div>
@@ -1636,7 +1645,7 @@ function RenZuReader() {
 
             <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative" }}
             >
-              <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em" }}>
+              <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em", touchAction: "pan-y" }}>
                 <span className="drop-cap" style={{
                   float: "left", fontSize: 78, lineHeight: 0.75, marginRight: 8, marginTop: 10, marginBottom: 2,
                   fontFamily: headFont, fontWeight: 700,
