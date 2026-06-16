@@ -254,7 +254,7 @@ function IntroScreen({ onDone }) {
   return (
     <div onClick={handleTap} style={{
       position: "fixed", inset: 0, zIndex: 999,
-      background: "radial-gradient(ellipse at 50% 40%, #0e0a05 0%, #000000 100%)",
+      background: "radial-gradient(ellipse at 50% 40%, #1c1408 0%, #0a0704 100%)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       cursor: "pointer",
       opacity: leaving ? 0 : 1,
@@ -269,7 +269,7 @@ function IntroScreen({ onDone }) {
         @keyframes introGlow { 0%,100%{box-shadow:0 0 50px rgba(180,120,30,0.22),0 0 100px rgba(120,70,5,0.10);} 50%{box-shadow:0 0 80px rgba(200,140,40,0.32),0 0 140px rgba(150,90,15,0.15);} }
         @keyframes tapGlow { 0%,100%{ color: rgba(180,148,82,0.30); text-shadow:0 0 6px rgba(212,175,100,0.10); } 50%{ color: rgba(228,192,116,0.65); text-shadow:0 0 18px rgba(228,192,116,0.65); } }
       `}</style>
-      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 42%, rgba(80,40,5,0.30) 0%, transparent 70%)", pointerEvents:"none" }} />
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 50% at 50% 42%, rgba(100,55,8,0.42) 0%, transparent 70%)", pointerEvents:"none" }} />
       <div style={{
         position:"relative", width:"min(320px,68vw)", height:"min(415px,88vw)",
         borderRadius:"28% / 22%", overflow:"hidden",
@@ -287,9 +287,9 @@ function IntroScreen({ onDone }) {
       </div>
       <div style={{ textAlign:"center", padding:"0 16px", width:"100%", maxWidth:"min(580px,94vw)" }}>
         {phase >= 1 && (<>
-          <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(9px,2.5vw,11px)", letterSpacing:"0.38em", color:"rgba(180,130,40,0.60)", textTransform:"uppercase", marginBottom:10, animation:"introT3 0.8s ease both" }}>Reverend Insanity · Gu Zhen Ren</div>
-          <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(16px,4.2vw,28px)", fontWeight:700, color:"#e8d6a8", letterSpacing:"0.04em", lineHeight:1.2, marginBottom:16, animation:"introT1 0.7s 0.1s ease both", textShadow:"0 2px 28px rgba(180,120,20,0.45)", whiteSpace:"nowrap" }}>The Legends of Ren Zu</div>
-          <div style={{ fontFamily:"'EB Garamond', 'Cormorant Garamond', Georgia, serif", fontStyle:"italic", fontWeight:400, fontSize:"clamp(8px,1.1vw,9px)", color:"rgba(226,206,165,0.50)", letterSpacing:"0.04em", lineHeight:1.35, maxWidth:"min(360px,80vw)", margin:"0 auto 16px", textAlign:"center", animation:"introT2 0.7s 0.22s ease both" }}>The Legends of Ren Zu is an esoteric tragedy chronicling how humanity's first ancestor, Ren Zu, bartered his very essence to primordial concepts in a relentless, brutal pursuit to ultimately conquer Fate itself.</div>
+          <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(9px,2.5vw,11px)", letterSpacing:"0.38em", color:"rgba(200,155,60,0.75)", textTransform:"uppercase", marginBottom:10, animation:"introT3 0.8s ease both" }}>Reverend Insanity · Gu Zhen Ren</div>
+          <div style={{ fontFamily:"'Cinzel Decorative', Georgia, serif", fontSize:"clamp(16px,4.2vw,28px)", fontWeight:700, color:"#ede0bb", letterSpacing:"0.04em", lineHeight:1.2, marginBottom:16, animation:"introT1 0.7s 0.1s ease both", textShadow:"0 2px 28px rgba(200,140,30,0.55)", whiteSpace:"nowrap" }}>The Legends of Ren Zu</div>
+          <div style={{ fontFamily:"'EB Garamond', 'Cormorant Garamond', Georgia, serif", fontStyle:"italic", fontWeight:400, fontSize:"clamp(8px,1.1vw,9px)", color:"rgba(226,206,165,0.68)", letterSpacing:"0.04em", lineHeight:1.35, maxWidth:"min(360px,80vw)", margin:"0 auto 16px", textAlign:"center", animation:"introT2 0.7s 0.22s ease both" }}>The Legends of Ren Zu is an esoteric tragedy chronicling how humanity's first ancestor, Ren Zu, bartered his very essence to primordial concepts in a relentless, brutal pursuit to ultimately conquer Fate itself.</div>
           <div style={{ fontFamily:"'Poppins', sans-serif", fontWeight:300, fontSize:"clamp(8px,1.8vw,9px)", color:"rgba(180,148,82,0.30)", letterSpacing:"0.30em", textTransform:"uppercase", animation:"introT3 0.5s 0.5s ease both, tapGlow 2.6s ease-in-out 1.2s infinite" }}>Tap to enter</div>
         </>)}
       </div>
@@ -889,7 +889,7 @@ function RenZuReader() {
         ));
       }
     }
-    return <>{highlight(restOfBody, query)}</>;
+    return <React.Fragment>{highlight(restOfBody, query)}</React.Fragment>;
   }
 
   // Scroll progress bar color
@@ -1284,6 +1284,7 @@ function RenZuReader() {
                 </span>
                 {renderBodyWithHighlight()}
               </div>
+            </div>
 
             <div style={{ ...sq(26), padding: "26px 30px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
