@@ -701,17 +701,11 @@ function RenZuReader() {
   const [tappedSentenceIdx, setTappedSentenceIdx] = useState(-1);
 
   function handleSentenceTap(sentenceIdx, sentenceText) {
-    // Block the document dismiss handler for this same pointerup event
-    blockNextDismissRef.current = true;
     if (tappedSentenceIdx === sentenceIdx) {
       // Second tap on same sentence = dismiss
       setTappedSentenceIdx(-1);
       setSelectionMenu(null);
     } else {
-      // Always ensure sentences are populated eagerly before setting menu
-      if (sentencesRef.current.length === 0 && selected) {
-        sentencesRef.current = splitSentences(selected.body);
-      }
       setTappedSentenceIdx(sentenceIdx);
       setSelectionMenu({ text: sentenceText, sentenceIdx });
     }
@@ -789,7 +783,7 @@ function RenZuReader() {
     setAudioPaused(false);
 
     playbackActiveRef.current = true;
-    sentencesRef.current = splitSentences(selected.body);
+    sentencesRef.current = splitSentences(selected.body.slice(1));
     sentenceIndexRef.current = 0;
 
     const myChainId = chainIdRef.current;
@@ -812,7 +806,7 @@ function RenZuReader() {
 
     // Make sure sentences are populated
     if (sentencesRef.current.length === 0) {
-      sentencesRef.current = splitSentences(selected.body);
+      sentencesRef.current = splitSentences(selected.body.slice(1));
     }
     playbackActiveRef.current = true;
     sentenceIndexRef.current = Math.max(0, sentenceIdx);
@@ -1074,17 +1068,27 @@ function RenZuReader() {
   const firstLetter = selected ? selected.body.charAt(0) : "";
   const restOfBody  = selected ? selected.body.slice(1) : "";
 
+  // Sentences are always split from restOfBody (body minus the drop-cap letter)
+  // so the big first letter never appears twice.
+  function getOrBuildSentences() {
+    if (sentencesRef.current.length === 0 && selected) {
+      sentencesRef.current = splitSentences(restOfBody);
+    }
+    return sentencesRef.current;
+  }
+
   // Build sentence-highlighted body for narration mode OR tap-select mode
   function renderBodyWithHighlight() {
-    // During narration, render each sentence as a span so we can highlight the active one
+    const sentences = getOrBuildSentences();
+
+    // During narration, render each sentence highlighted on the active one
     if (audioPlaying || audioPaused) {
-      const sentences = sentencesRef.current;
       if (sentences.length > 0) {
         return sentences.map((s, i) => (
           <span key={i} style={i === activeSentenceIdx ? {
             background: D ? "rgba(255,255,255,0.14)" : S ? "rgba(139,94,26,0.22)" : "rgba(212,168,60,0.30)",
             borderRadius: 3,
-            outline: `1.5px solid ${D ? "rgba(255,255,255,0.30)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
+            boxShadow: `0 0 0 1.5px ${D ? "rgba(255,255,255,0.30)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
             transition: "background 0.3s",
           } : { transition: "background 0.3s" }}>
             {highlightThemed(s, query, S, D)}{" "}
@@ -1092,20 +1096,17 @@ function RenZuReader() {
         ));
       }
     }
-    // Tap-select mode: render every sentence as a tappable span (Evie-style)
-    if (sentencesRef.current.length === 0 && selected) {
-      sentencesRef.current = splitSentences(selected.body);
-    }
-    const sentences = sentencesRef.current;
+
+    // Tap-select mode: every sentence is a tappable span
     if (sentences.length > 0) {
-      // First sentence loses its first char (drop-cap) — handle gracefully
       return sentences.map((s, i) => {
         const isActive = i === tappedSentenceIdx;
         return (
           <span
             key={i}
             data-sent-idx={i}
-onPointerUp={e => { e.stopPropagation(); handleSentenceTap(i, s); }}
+            onPointerDown={e => { blockNextDismissRef.current = true; }}
+            onPointerUp={e => { e.stopPropagation(); handleSentenceTap(i, s); }}
             style={{
               cursor: "pointer",
               background: isActive
