@@ -2,7 +2,7 @@
 //
 // TTS endpoint for Vercel serverless functions
 // Uses Google Cloud Text-to-Speech with Service Account auth
-// Free tier: 4 million characters/month (Neural2 voices)
+// Free tier: 4 million characters/month (Chirp 3 HD voices)
 //
 
 async function getAccessToken(serviceAccountJson) {
