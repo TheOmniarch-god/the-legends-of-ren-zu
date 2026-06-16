@@ -832,8 +832,7 @@ const LONG_PRESS_MOVE_THRESHOLD = 16; // px — ignore sub-pixel tremor, only ca
     setAudioPaused(false);
 
     playbackActiveRef.current = true;
-    const _sents = splitSentences(selected.body.slice(1));
-    if (_sents.length > 0) _sents[0] = selected.body.charAt(0) + _sents[0];
+    const _sents = splitSentences(selected.body);
     sentencesRef.current = _sents;
     sentenceIndexRef.current = 0;
 
@@ -855,10 +854,9 @@ const LONG_PRESS_MOVE_THRESHOLD = 16; // px — ignore sub-pixel tremor, only ca
     setSelectionMenu(null);
     setTappedSentenceIdx(-1);
 
-    // Make sure sentences are populated (audio needs the full body incl. drop-cap letter)
+    // Make sure sentences are populated (audio needs the full body)
     if (sentencesRef.current.length === 0) {
-      const _sents = splitSentences(selected.body.slice(1));
-      if (_sents.length > 0) _sents[0] = selected.body.charAt(0) + _sents[0];
+      const _sents = splitSentences(selected.body);
       sentencesRef.current = _sents;
     }
     playbackActiveRef.current = true;
@@ -1130,7 +1128,7 @@ function getOrBuildSentences() {
     const key = selected ? selected.num : null;
     if (chapterKeyRef.current !== key || sentencesRef.current.length === 0) {
         chapterKeyRef.current = key;
-        sentencesRef.current = selected ? splitSentences(restOfBody) : [];
+        sentencesRef.current = selected ? splitSentences(selected.body) : [];
     }
     return sentencesRef.current;
 }
@@ -1200,7 +1198,7 @@ function getOrBuildSentences() {
         );
       });
     }
-    return <React.Fragment>{highlightThemed(restOfBody, query, S, D)}</React.Fragment>;
+    return <React.Fragment>{highlightThemed(selected.body, query, S, D)}</React.Fragment>;
   }
 
   // Scroll progress bar color
@@ -1673,14 +1671,6 @@ function getOrBuildSentences() {
             <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative" }}
             >
               <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em", touchAction: "pan-y" }}>
-                <span className="drop-cap" style={{
-                  float: "left", fontSize: 78, lineHeight: 0.75, marginRight: 8, marginTop: 10, marginBottom: 2,
-                  fontFamily: headFont, fontWeight: 700,
-                  color: S ? "rgba(139,94,26,0.65)" : D ? "rgba(220,218,212,0.28)" : "rgba(0,0,0,0.26)",
-                  ...(S ? { textShadow: "1px 1px 0 rgba(200,155,60,0.3)" } : {}),
-                }}>
-                  {firstLetter}
-                </span>
                 {renderBodyWithHighlight()}
               </div>
             </div>
