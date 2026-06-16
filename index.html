@@ -12,10 +12,6 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Legends of Ren Zu">
-  <meta name="mobile-web-app-capable" content="yes">
 
   <style>* { margin: 0; padding: 0; box-sizing: border-box; } html { background: #ece8de; } body { background: transparent; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }</style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -699,56 +695,45 @@ function RenZuReader() {
     return out;
   }
 
-  // ── Selection popup — uses selectionchange event so we never compete with
-  //    the browser's native context menu on mobile. A settle-timeout fires
-  //    ~400 ms after the user stops changing the selection; if the selection
-  //    is non-empty AND the anchor node is inside the chapter canvas, we show
-  //    the popup. This works on both desktop and mobile without any touchend.
-  useEffect(() => {
-    if (!selected) return;
-    let settleTimer = null;
+  // ── Tap-to-select (Evie-style) — each sentence is a tappable span.
+  // A single tap highlights that sentence and shows the action bar.
+  // Tapping outside or on another sentence dismisses/moves it.
+  const [tappedSentenceIdx, setTappedSentenceIdx] = useState(-1);
 
-    function onSelectionChange() {
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed) { setSelectionMenu(null); return; }
-        const selectedText = sel.toString().trim();
-        if (selectedText.length < 2) { setSelectionMenu(null); return; }
-
-        // Only show if selection is inside the chapter canvas
-        const canvas = chapterCanvasRef.current;
-        if (!canvas) return;
-        const anchorNode = sel.anchorNode;
-        if (!anchorNode || !canvas.contains(anchorNode)) { setSelectionMenu(null); return; }
-
-        if (sentencesRef.current.length === 0) {
-          sentencesRef.current = splitSentences(selected.body);
-        }
-        const allSentences = sentencesRef.current;
-        let startIdx = 0;
-        const probe = selectedText.slice(0, 30);
-        for (let i = 0; i < allSentences.length; i++) {
-          if (allSentences[i].includes(probe)) { startIdx = i; break; }
-        }
-
-        const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        setSelectionMenu({
-          vx: rect.left + rect.width / 2,
-          vy: rect.top,
-          text: selectedText,
-          sentenceIdx: startIdx,
-        });
-      }, 400);
+  function handleSentenceTap(sentenceIdx, sentenceText) {
+    if (tappedSentenceIdx === sentenceIdx) {
+      // Second tap on same sentence = dismiss
+      setTappedSentenceIdx(-1);
+      setSelectionMenu(null);
+    } else {
+      setTappedSentenceIdx(sentenceIdx);
+      if (sentencesRef.current.length === 0) {
+        sentencesRef.current = splitSentences(selected.body);
+      }
+      setSelectionMenu({ text: sentenceText, sentenceIdx });
     }
+  }
 
-    document.addEventListener("selectionchange", onSelectionChange);
+  // Dismiss tap selection on outside click/touch
+  useEffect(() => {
+    if (tappedSentenceIdx < 0) return;
+    function dismiss(e) {
+      const popup = document.getElementById("sel-menu-popup");
+      if (popup && popup.contains(e.target)) return;
+      // If click is on a sentence span, handleSentenceTap will handle it
+      if (e.target && e.target.dataset && e.target.dataset.sentIdx !== undefined) return;
+      setTappedSentenceIdx(-1);
+      setSelectionMenu(null);
+    }
+    setTimeout(() => {
+      document.addEventListener("mousedown", dismiss);
+      document.addEventListener("touchstart", dismiss);
+    }, 0);
     return () => {
-      clearTimeout(settleTimer);
-      document.removeEventListener("selectionchange", onSelectionChange);
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("touchstart", dismiss);
     };
-  }, [selected]);
+  }, [tappedSentenceIdx]);
 
   function toggleAudio() {
     if (audioLoading) return;
@@ -783,6 +768,7 @@ function RenZuReader() {
     // Fresh start
     stopAllAudio();
     setSelectionMenu(null);
+    setTappedSentenceIdx(-1);
     setAudioError(false);
     setAudioLoading(true);
     setAudioStatus("");
@@ -809,7 +795,7 @@ function RenZuReader() {
     setAudioPlaying(false);
     setAudioPaused(false);
     setSelectionMenu(null);
-    window.getSelection()?.removeAllRanges();
+    setTappedSentenceIdx(-1);
 
     // Make sure sentences are populated
     if (sentencesRef.current.length === 0) {
@@ -831,7 +817,7 @@ function RenZuReader() {
     setAudioPlaying(false);
     setAudioPaused(false);
     setSelectionMenu(null);
-    window.getSelection()?.removeAllRanges();
+    setTappedSentenceIdx(-1);
 
     // Temporarily replace sentence list with just the selection
     sentencesRef.current = [text.trim()];
@@ -862,6 +848,9 @@ function RenZuReader() {
     setAudioLoading(false);
     setAudioStatus("");
     setVoicePickerOpen(false);
+    setTappedSentenceIdx(-1);
+    setSelectionMenu(null);
+    sentencesRef.current = [];
   }, [selected]);
 
   function select(c) {
@@ -1026,12 +1015,12 @@ function RenZuReader() {
 
   const blur   = S ? "none" : "blur(28px) saturate(1.6)";
   const shadow = D
-    ? "0 2px 40px rgba(0,0,0,0.9), 0 1px 4px rgba(0,0,0,0.7)"
+    ? "0 2px 40px rgba(0,0,0,0.9), 0 1px 4px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)"
     : S
       ? "0 1px 8px rgba(60,28,4,0.18), 0 0 0 1px rgba(80,42,8,0.12)"
       : "0 2px 36px rgba(0,0,0,0.055), 0 1px 3px rgba(0,0,0,0.03)";
   const shadowHov = D
-    ? "0 8px 64px rgba(0,0,0,0.95), 0 2px 12px rgba(255,255,255,0.04)"
+    ? "0 8px 64px rgba(0,0,0,0.95), 0 2px 12px rgba(255,255,255,0.04), 0 0 0 1px rgba(255,255,255,0.08)"
     : S
       ? "0 3px 18px rgba(60,28,4,0.28), 0 0 0 1px rgba(80,42,8,0.22)"
       : "0 8px 60px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.045)";
@@ -1083,7 +1072,7 @@ function RenZuReader() {
   const firstLetter = selected ? selected.body.charAt(0) : "";
   const restOfBody  = selected ? selected.body.slice(1) : "";
 
-  // Build sentence-highlighted body for narration mode
+  // Build sentence-highlighted body for narration mode OR tap-select mode
   function renderBodyWithHighlight() {
     // During narration, render each sentence as a span so we can highlight the active one
     if (audioPlaying || audioPaused) {
@@ -1091,15 +1080,47 @@ function RenZuReader() {
       if (sentences.length > 0) {
         return sentences.map((s, i) => (
           <span key={i} style={i === activeSentenceIdx ? {
-            background: D ? "rgba(180,160,255,0.22)" : S ? "rgba(139,94,26,0.22)" : "rgba(212,168,60,0.30)",
+            background: D ? "rgba(255,255,255,0.14)" : S ? "rgba(139,94,26,0.22)" : "rgba(212,168,60,0.30)",
             borderRadius: 3,
-            outline: `1.5px solid ${D ? "rgba(180,160,255,0.4)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
+            outline: `1.5px solid ${D ? "rgba(255,255,255,0.30)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
             transition: "background 0.3s",
           } : { transition: "background 0.3s" }}>
             {highlightThemed(s, query, S, D)}{" "}
           </span>
         ));
       }
+    }
+    // Tap-select mode: render every sentence as a tappable span (Evie-style)
+    if (sentencesRef.current.length === 0) {
+      sentencesRef.current = splitSentences(selected ? selected.body : "");
+    }
+    const sentences = sentencesRef.current;
+    if (sentences.length > 0) {
+      // First sentence loses its first char (drop-cap) — handle gracefully
+      return sentences.map((s, i) => {
+        const isActive = i === tappedSentenceIdx;
+        return (
+          <span
+            key={i}
+            data-sent-idx={i}
+            onClick={() => handleSentenceTap(i, s)}
+            style={{
+              cursor: "pointer",
+              background: isActive
+                ? (D ? "rgba(255,255,255,0.13)" : S ? "rgba(139,94,26,0.20)" : "rgba(212,168,60,0.28)")
+                : "transparent",
+              borderRadius: 3,
+              outline: isActive
+                ? `1.5px solid ${D ? "rgba(255,255,255,0.28)" : S ? "rgba(139,94,26,0.40)" : "rgba(200,150,30,0.48)"}`
+                : "none",
+              transition: "background 0.18s, outline 0.18s",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            {highlightThemed(s, query, S, D)}{" "}
+          </span>
+        );
+      });
     }
     return <React.Fragment>{highlightThemed(restOfBody, query, S, D)}</React.Fragment>;
   }
@@ -1123,6 +1144,7 @@ function RenZuReader() {
       opacity: transitioning ? 0 : 1,
       filter: transitioning ? "blur(6px)" : "none",
       transitionProperty: transitioning ? "opacity, filter" : "background, color",
+      userSelect: "none",
     }}>
       <style>{`
         @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -1145,7 +1167,8 @@ function RenZuReader() {
         .card-in:nth-child(8)  { animation-delay: 0.28s; }
         .card-in:nth-child(n+9){ animation-delay: 0.32s; }
         input::placeholder { color: ${textDim}; font-family: ${headFont}; }
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+        .selectable, .selectable * { -webkit-user-select: text !important; user-select: text !important; }
         html { scrollbar-width: thin; scrollbar-color: ${borderHov} transparent; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1198,7 +1221,7 @@ function RenZuReader() {
           {/* Dark theme ambient glow */}
           {D && (
             <div style={{ position:"absolute", inset:0, pointerEvents:"none", borderRadius:22,
-              background:"radial-gradient(ellipse 70% 120% at 20% 50%, rgba(180,160,255,0.03) 0%, transparent 60%)",
+              background:"radial-gradient(ellipse 70% 120% at 20% 50%, rgba(255,255,255,0.02) 0%, transparent 60%)",
             }} />
           )}
           {/* ── Bouncing balls — all themes ── */}
@@ -1343,7 +1366,7 @@ function RenZuReader() {
                     </div>
                   </div>
                   {/* Left accent stripe */}
-                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "22px 0 0 22px", background: isHov ? (S ? "linear-gradient(180deg, rgba(180,130,40,0.7) 0%, rgba(139,94,26,0.3) 100%)" : D ? "linear-gradient(180deg, rgba(180,160,255,0.5) 0%, rgba(140,120,220,0.2) 100%)" : "rgba(0,0,0,0.18)") : "transparent", transition: "background 0.25s" }} />
+                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "22px 0 0 22px", background: isHov ? (S ? "linear-gradient(180deg, rgba(180,130,40,0.7) 0%, rgba(139,94,26,0.3) 100%)" : D ? "linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(200,200,200,0.15) 100%)" : "rgba(0,0,0,0.18)") : "transparent", transition: "background 0.25s" }} />
                   <div style={{ padding: "19px 20px 19px 22px", position: "relative" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
                       <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: textDim, paddingRight: 10, borderRight: `1px solid ${border}`, lineHeight: 1, fontFamily: headFont }}>Part {c.num}</span>
@@ -1590,8 +1613,8 @@ function RenZuReader() {
                 {[
                   { icon: "▶", label: "From here", action: () => readFromHere(selectionMenu.sentenceIdx) },
                   { icon: "◉", label: "Selection",  action: () => readSelection(selectionMenu.text) },
-                  { icon: "✦", label: "Ask AI",     action: () => { setSelectionMenu(null); window.getSelection()?.removeAllRanges(); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
-                  { icon: "⎘", label: "Copy",       action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); window.getSelection()?.removeAllRanges(); } },
+                  { icon: "✦", label: "Ask AI",     action: () => { setSelectionMenu(null); setTappedSentenceIdx(-1); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
+                  { icon: "⎘", label: "Copy",       action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); setTappedSentenceIdx(-1); } },
                 ].map(({ icon, label, action }) => (
                   <button key={label} onClick={action}
                     style={{
@@ -1611,13 +1634,13 @@ function RenZuReader() {
               </div>
             )}
 
-            <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative", userSelect: "text" }}
+            <div ref={chapterCanvasRef} style={{ ...sq(26), padding: "36px 40px", marginBottom: 16, position: "relative" }}
             >
               <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em" }}>
                 <span className="drop-cap" style={{
                   float: "left", fontSize: 78, lineHeight: 0.75, marginRight: 8, marginTop: 10, marginBottom: 2,
                   fontFamily: headFont, fontWeight: 700,
-                  color: S ? "rgba(139,94,26,0.65)" : D ? "rgba(200,190,255,0.32)" : "rgba(0,0,0,0.26)",
+                  color: S ? "rgba(139,94,26,0.65)" : D ? "rgba(220,218,212,0.28)" : "rgba(0,0,0,0.26)",
                   ...(S ? { textShadow: "1px 1px 0 rgba(200,155,60,0.3)" } : {}),
                 }}>
                   {firstLetter}
@@ -1672,6 +1695,29 @@ function RenZuReader() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* ── SOCIAL LINKS (also shown on reading pages) ── */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 32, paddingBottom: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <img src={IMG_LOGO} alt="The Omniarch" style={{ width: 88, height: 88, objectFit: "contain", filter: "drop-shadow(0 4px 18px rgba(212,168,60,0.38))", opacity: D ? 0.85 : 1 }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                {[
+                  { label: "Discord", href: "https://discord.com/invite/DunazTeMSA", Icon: DiscordIcon },
+                  { label: "YouTube", href: "https://youtube.com/@godofpeakfiction", Icon: YouTubeIcon },
+                  { label: "TikTok", href: "https://www.tiktok.com/@godofpeakfiction", Icon: TikTokIcon },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 18px", fontSize: 11, borderRadius: 999, border: `1px solid ${border}`, color: textMid, fontFamily: headFont, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none", transition: "all 0.17s", background: "transparent" }}
+                    onMouseEnter={e => { e.currentTarget.style.color = text; e.currentTarget.style.borderColor = borderHov; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = textMid; e.currentTarget.style.borderColor = border; }}
+                  ><s.Icon size={14} />{s.label}</a>
+                ))}
+              </div>
+              <div style={{ textAlign: "center", fontSize: 9, color: textDim, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: headFont }}>
+                The Omniarch · God of Peak Fiction
+              </div>
             </div>
 
           </div>
