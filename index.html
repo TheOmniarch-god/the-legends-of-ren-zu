@@ -463,6 +463,20 @@ function RenZuReader() {
     });
   }, []);
 
+  // ── Sticky header on scroll ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      const contentEl = document.querySelector('[data-content-area]');
+      if (contentEl) {
+        setHeaderSticky(contentEl.scrollTop > 80);
+      } else {
+        setHeaderSticky(window.scrollY > 80);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // mode: "light" | "dark" | "scroll"
   const [showIntro, setShowIntro]   = useState(true);
   const [mode, setMode]             = useState("light");
@@ -476,8 +490,12 @@ function RenZuReader() {
   const [aiStreaming, setAiStreaming] = useState(false);
   const [hovered, setHovered]       = useState(null);
   const [transitioning, setTransitioning] = useState(false);
-  const [voice, setVoice]           = useState("en-US-Neural2-D");
+  const [voice, setVoice]           = useState("en-GB-Neural2-B");
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
+  const [speechRate, setSpeechRate]  = useState(1);
+  const [accentRegion, setAccentRegion] = useState("british");
+  const [highlightStart, setHighlightStart] = useState(0);
+  const [headerSticky, setHeaderSticky] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [audioPaused, setAudioPaused] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
@@ -577,7 +595,7 @@ function RenZuReader() {
       const ttsRes = await fetch("/api/ai-chat-tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: sentences[idx], voice })
+        body: JSON.stringify({ text: sentences[idx], voice, speakingRate: speechRate })
       });
 
       if (!ttsRes.ok) {
@@ -1221,22 +1239,35 @@ function RenZuReader() {
                 <div style={{ marginTop: 18 }}>
                   {(() => {
                     const VOICES = [
-                      { key: "en-US-Neural2-D", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸" },
-                      { key: "en-US-Neural2-A", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸" },
-                      { key: "en-US-Neural2-J", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸" },
-                      { key: "en-US-Neural2-I", name: "Emryn",     gender: "♂", desc: "Clear · Steady",        accent: "🇺🇸" },
-                      { key: "en-GB-Neural2-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧" },
-                      { key: "en-US-Neural2-C", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸" },
-                      { key: "en-US-Neural2-E", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸" },
-                      { key: "en-US-Neural2-G", name: "Mireille",  gender: "♀", desc: "Soft · Ethereal",       accent: "🇺🇸" },
-                      { key: "en-US-Neural2-H", name: "Vashti",    gender: "♀", desc: "Bright · Precise",      accent: "🇺🇸" },
-                      { key: "en-GB-Neural2-A", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧" },
-                      { key: "en-GB-Neural2-F", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧" },
+                      // British Male - Bold & Commanding
+                      { key: "en-GB-Neural2-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Neural2-D", name: "Adrian",    gender: "♂", desc: "Deep · Authoritative",  accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Neural2-C", name: "Theogenes", gender: "♂", desc: "Stern · Powerful",     accent: "🇬🇧", region: "british" },
+                      // American Male - Bold & Commanding
+                      { key: "en-US-Neural2-D", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Neural2-A", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Neural2-J", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸", region: "american" },
+                      // Female Voices
+                      { key: "en-US-Neural2-C", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Neural2-E", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸", region: "american" },
+                      { key: "en-GB-Neural2-A", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Neural2-F", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧", region: "british" },
                     ];
                     const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
                     return (
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ 
+                          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                          position: headerSticky ? "sticky" : "relative",
+                          top: 0,
+                          zIndex: headerSticky ? 90 : "auto",
+                          background: headerSticky ? (D ? "rgba(20,20,25,0.92)" : S ? "rgba(236,232,222,0.92)" : "rgba(255,255,255,0.92)") : "transparent",
+                          backdropFilter: headerSticky ? "blur(10px)" : "none",
+                          padding: headerSticky ? "12px 18px" : "0",
+                          borderBottom: headerSticky ? `1px solid ${border}` : "none",
+                          transition: "all 0.3s ease",
+                          boxShadow: headerSticky ? (D ? "0 4px 12px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.08)") : "none",
+                        }}>
                           {/* Play/pause button */}
                           <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause" : audioPaused ? "Resume" : "Play"}
                             disabled={audioLoading}
@@ -1280,6 +1311,25 @@ function RenZuReader() {
                             <span style={{ fontSize: 9, color: textDim, marginLeft: 2, transition: "transform 0.2s", display: "inline-block", transform: voicePickerOpen ? "rotate(180deg)" : "none" }}>▼</span>
                           </button>
 
+                          {/* Speed control buttons */}
+                          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            {[0.5, 0.75, 1, 1.5, 2].map(speed => (
+                              <button key={speed} onClick={() => setSpeechRate(speed)} 
+                                style={{
+                                  padding: "5px 9px", fontSize: 10, fontWeight: speechRate === speed ? 600 : 400,
+                                  background: speechRate === speed ? (D ? "rgba(200,180,255,0.3)" : S ? "rgba(139,94,26,0.4)" : "rgba(0,0,0,0.12)") : "transparent",
+                                  border: `1px solid ${speechRate === speed ? borderHov : border}`,
+                                  borderRadius: 6, cursor: "pointer", color: text, fontFamily: headFont,
+                                  transition: "all 0.15s", letterSpacing: "0.02em"
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.borderColor = borderHov}
+                                onMouseLeave={e => e.currentTarget.style.borderColor = speechRate === speed ? borderHov : border}
+                              >
+                                {speed}x
+                              </button>
+                            ))}
+                          </div>
+
                           {/* Status text */}
                           <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont }}>
                             {audioError
@@ -1291,7 +1341,7 @@ function RenZuReader() {
                           </span>
                         </div>
 
-                        {/* Voice picker dropdown */}
+                        {/* Voice picker dropdown with region tabs and highlight feature */}
                         {voicePickerOpen && (
                           <div style={{
                             marginTop: 10, borderRadius: 14,
@@ -1301,9 +1351,31 @@ function RenZuReader() {
                             boxShadow: D ? "0 8px 32px rgba(0,0,0,0.8)" : "0 8px 32px rgba(0,0,0,0.12)",
                             overflow: "hidden", animation: "fadeUp 0.18s ease both",
                           }}>
-                            {/* Male */}
+                            {/* Region selector tabs */}
+                            <div style={{ display: "flex", borderBottom: `1px solid ${border}`, padding: "8px 10px", gap: 8 }}>
+                              {["british", "american"].map(region => (
+                                <button key={region} onClick={() => setAccentRegion(region)}
+                                  style={{
+                                    flex: 1, padding: "6px 10px", fontSize: 10, fontWeight: accentRegion === region ? 700 : 500,
+                                    background: accentRegion === region ? (D ? "rgba(255,255,255,0.1)" : S ? "rgba(101,66,20,0.2)" : "rgba(0,0,0,0.08)") : "transparent",
+                                    border: `1px solid ${accentRegion === region ? borderHov : border}`,
+                                    borderRadius: 8, cursor: "pointer", color: text, fontFamily: headFont,
+                                    transition: "all 0.15s", textTransform: "capitalize", letterSpacing: "0.04em"
+                                  }}
+                                >
+                                  {region === "british" ? "🇬🇧 British" : "🇺🇸 American"}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Highlight feature */}
+                            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, fontSize: 9, color: textDim, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: headFont }}>
+                              ✨ Highlight to read from here
+                            </div>
+
+                            {/* Male voices filtered by region */}
                             <div style={{ padding: "10px 14px 4px", fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>Male voices</div>
-                            {VOICES.filter(v => v.gender === "♂").map(v => (
+                            {VOICES.filter(v => v.gender === "♂" && v.region === accentRegion).map(v => (
                               <button key={v.key} onClick={() => { switchVoice(v.key); setVoicePickerOpen(false); }} style={{
                                 width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px",
                                 background: voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent",
@@ -1315,14 +1387,14 @@ function RenZuReader() {
                                 onMouseLeave={e => e.currentTarget.style.background = voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent"}
                               >
                                 <span style={{ fontSize: 13 }}>{v.gender}</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 68 }}>{v.name}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 80 }}>{v.name}</span>
                                 <span style={{ fontSize: 13 }}>{v.accent}</span>
                                 <span style={{ fontSize: 10, color: textDim }}>{v.desc}</span>
                               </button>
                             ))}
-                            {/* Female */}
+                            {/* Female voices filtered by region */}
                             <div style={{ padding: "10px 14px 4px", fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase", color: textDim, fontFamily: headFont, borderTop: `1px solid ${border}`, marginTop: 4 }}>Female voices</div>
-                            {VOICES.filter(v => v.gender === "♀").map(v => (
+                            {VOICES.filter(v => v.gender === "♀" && v.region === accentRegion).map(v => (
                               <button key={v.key} onClick={() => { switchVoice(v.key); setVoicePickerOpen(false); }} style={{
                                 width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px",
                                 background: voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent",
