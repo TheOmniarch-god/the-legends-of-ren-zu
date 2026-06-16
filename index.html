@@ -6,8 +6,7 @@
   <title>The Legends of Ren Zu</title>
   <meta name="description" content="The Legends of Ren Zu — Reverend Insanity by Gu Zhen Ren" />
 
-  <!-- PWA: manifest + icons (so the app carries its own icon to the home screen) -->
-  <link rel="manifest" href="/manifest.json">
+  <!-- PWA: icons only (manifest removed — app has its own custom intro screen) -->
   <link rel="icon" href="/icons/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
@@ -15,7 +14,7 @@
   <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Ren Zu">
+  <meta name="apple-mobile-web-app-title" content="Legends of Ren Zu">
   <meta name="mobile-web-app-capable" content="yes">
 
   <style>* { margin: 0; padding: 0; box-sizing: border-box; } html { background: #ece8de; } body { background: transparent; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }</style>
@@ -688,9 +687,9 @@ function RenZuReader() {
     return out;
   }
 
-  // ── Selection popup — fires after user lifts mouse inside the chapter canvas ──
+  // ── Selection popup — fires after user lifts mouse/touch inside the chapter canvas ──
   function handleCanvasMouseUp(e) {
-    // Small delay so the browser has committed the selection
+    const delay = e.type === "touchend" ? 120 : 10;
     setTimeout(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
@@ -698,38 +697,27 @@ function RenZuReader() {
         return;
       }
       const selectedText = sel.toString().trim();
+      if (selectedText.length < 2) { setSelectionMenu(null); return; }
 
-      // Find which sentence index the selection starts in
-      const sentences = sentencesRef.current.length > 0
-        ? sentencesRef.current
-        : splitSentences(selected ? selected.body : "");
-      // Ensure sentencesRef is populated even if narration hasn't started
       if (sentencesRef.current.length === 0 && selected) {
         sentencesRef.current = splitSentences(selected.body);
       }
       const allSentences = sentencesRef.current;
       let startIdx = 0;
+      const probe = selectedText.slice(0, 30);
       for (let i = 0; i < allSentences.length; i++) {
-        if (allSentences[i].includes(selectedText.slice(0, 30))) {
-          startIdx = i;
-          break;
-        }
+        if (allSentences[i].includes(probe)) { startIdx = i; break; }
       }
 
-      // Position popup above the selection
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-      const canvasRect = chapterCanvasRef.current
-        ? chapterCanvasRef.current.getBoundingClientRect()
-        : { left: 0, top: 0 };
-
       setSelectionMenu({
-        x: rect.left + rect.width / 2 - canvasRect.left,
-        y: rect.top - canvasRect.top - 8,
+        vx: rect.left + rect.width / 2,
+        vy: rect.top,
         text: selectedText,
         sentenceIdx: startIdx,
       });
-    }, 10);
+    }, delay);
   }
 
   function toggleAudio() {
@@ -910,7 +898,6 @@ function RenZuReader() {
   useEffect(() => {
     if (!selectionMenu) return;
     function dismiss(e) {
-      // Don't dismiss if clicking inside the popup itself
       const popup = document.getElementById("sel-menu-popup");
       if (popup && popup.contains(e.target)) return;
       setSelectionMenu(null);
@@ -919,12 +906,14 @@ function RenZuReader() {
     setTimeout(() => {
       document.addEventListener("mousedown", dismiss);
       document.addEventListener("touchstart", dismiss);
-      document.addEventListener("scroll", onScroll, true);
+      document.addEventListener("touchmove", onScroll, { passive: true });
+      window.addEventListener("scroll", onScroll, true);
     }, 0);
     return () => {
       document.removeEventListener("mousedown", dismiss);
       document.removeEventListener("touchstart", dismiss);
-      document.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("touchmove", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [selectionMenu]);
 
@@ -1568,11 +1557,11 @@ function RenZuReader() {
               {/* ── Selection popup menu ── */}
               {selectionMenu && (
                 <div id="sel-menu-popup" style={{
-                  position: "absolute",
-                  left: Math.min(Math.max(selectionMenu.x, 80), 999),
-                  top: selectionMenu.y - 52,
+                  position: "fixed",
+                  left: Math.min(Math.max(selectionMenu.vx, 100), window.innerWidth - 100),
+                  top: Math.max(selectionMenu.vy - 60, 8),
                   transform: "translateX(-50%)",
-                  zIndex: 200,
+                  zIndex: 9999,
                   display: "flex",
                   gap: 4,
                   background: D ? "rgba(18,18,22,0.97)" : S ? "rgba(42,21,4,0.96)" : "rgba(20,18,16,0.95)",
