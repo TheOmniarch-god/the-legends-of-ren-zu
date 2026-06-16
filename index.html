@@ -490,7 +490,7 @@ function RenZuReader() {
   const [aiStreaming, setAiStreaming] = useState(false);
   const [hovered, setHovered]       = useState(null);
   const [transitioning, setTransitioning] = useState(false);
-  const [voice, setVoice]           = useState("en-GB-Neural2-B");
+  const [voice, setVoice]           = useState("en-US-Studio-Q");
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const [speechRate, setSpeechRate]  = useState(1);
   const [accentRegion, setAccentRegion] = useState("british");
@@ -656,19 +656,38 @@ function RenZuReader() {
       pausedRef.current = true;
       setAudioPaused(true);
       setAudioPlaying(false);
-      if (audioContextRef.current) audioContextRef.current.suspend().catch(() => {});
-      if (currentSourceRef.current) { try { currentSourceRef.current.stop(); } catch (_) {} currentSourceRef.current = null; }
+      // Complete audio cleanup
+      if (currentSourceRef.current) {
+        try { currentSourceRef.current.stop(0); } catch (_) {}
+        currentSourceRef.current = null;
+      }
+      if (audioContextRef.current) {
+        try { audioContextRef.current.suspend(); } catch (_) {}
+      }
       return;
     }
 
-    // If paused → resume from current sentence
+    // If paused → resume from current sentence (full restart, not resume)
     if (audioPaused) {
+      // Complete cleanup before resuming
+      stopAllAudio();
       pausedRef.current = false;
       setAudioPaused(false);
-      setAudioPlaying(true);
-      playbackActiveRef.current = true;
-      // Re-fetch and play current sentence (audio can't be "resumed" in WebAudio — re-request it)
-      speakNextSentence().catch(err => { setAudioError(true); setAudioLoading(false); });
+      setAudioLoading(true);
+      setAudioPlaying(false);
+      setAudioError(false);
+      setAudioStatus("");
+      
+      // Re-fetch and play current sentence
+      const idx = sentenceIndexRef.current;
+      if (idx < sentencesRef.current.length) {
+        playbackActiveRef.current = true;
+        speakNextSentence().catch(err => { 
+          setAudioError(true); 
+          setAudioStatus(err.message); 
+          setAudioLoading(false); 
+        });
+      }
       return;
     }
 
@@ -686,6 +705,17 @@ function RenZuReader() {
     speakNextSentence().catch(err => {
       setAudioError(true); setAudioLoading(false);
     });
+  }
+
+  function switchSpeed(s) {
+    if (s === speechRate) return;
+    stopAllAudio();
+    setAudioError(false);
+    setAudioPlaying(false);
+    setAudioPaused(false);
+    setAudioLoading(false);
+    setAudioStatus("");
+    setSpeechRate(s);
   }
 
   function switchVoice(v) {
@@ -1239,34 +1269,35 @@ function RenZuReader() {
                 <div style={{ marginTop: 18 }}>
                   {(() => {
                     const VOICES = [
-                      // British Male - Bold & Commanding
-                      { key: "en-GB-Neural2-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-D", name: "Adrian",    gender: "♂", desc: "Deep · Authoritative",  accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-C", name: "Theogenes", gender: "♂", desc: "Stern · Powerful",     accent: "🇬🇧", region: "british" },
-                      // American Male - Bold & Commanding
-                      { key: "en-US-Neural2-D", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-A", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-J", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸", region: "american" },
-                      // Female Voices
-                      { key: "en-US-Neural2-C", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-E", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸", region: "american" },
-                      { key: "en-GB-Neural2-A", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-F", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧", region: "british" },
+                      // ★ AMERICAN MALE VOICES - BOLD & COMMANDING (Chirp 3 HD)
+                      { key: "en-US-Studio-Q", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-O", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-C", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸", region: "american" },
+                      // ★ BRITISH MALE VOICES - BOLD & COMMANDING (Chirp 3 HD)
+                      { key: "en-GB-Studio-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-D", name: "Adrian",    gender: "♂", desc: "Deep · Authoritative",  accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-A", name: "Theogenes", gender: "♀", desc: "Stern · Powerful",     accent: "🇬🇧", region: "british" },
+                      // ★ FEMALE VOICES (Chirp 3 HD)
+                      { key: "en-US-Studio-E", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-F", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸", region: "american" },
+                      { key: "en-GB-Studio-F", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-C", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧", region: "british" },
                     ];
                     const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
                     return (
                       <div>
                         <div style={{ 
                           display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-                          position: headerSticky ? "sticky" : "relative",
+                          position: "sticky",
                           top: 0,
-                          zIndex: headerSticky ? 90 : "auto",
-                          background: headerSticky ? (D ? "rgba(20,20,25,0.92)" : S ? "rgba(236,232,222,0.92)" : "rgba(255,255,255,0.92)") : "transparent",
-                          backdropFilter: headerSticky ? "blur(10px)" : "none",
-                          padding: headerSticky ? "12px 18px" : "0",
+                          zIndex: 90,
+                          background: headerSticky ? (D ? "rgba(20,20,25,0.95)" : S ? "rgba(236,232,222,0.95)" : "rgba(255,255,255,0.95)") : "transparent",
+                          backdropFilter: headerSticky ? "blur(12px)" : "none",
+                          WebkitBackdropFilter: headerSticky ? "blur(12px)" : "none",
+                          padding: headerSticky ? "14px 18px" : "8px 0",
                           borderBottom: headerSticky ? `1px solid ${border}` : "none",
-                          transition: "all 0.3s ease",
-                          boxShadow: headerSticky ? (D ? "0 4px 12px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.08)") : "none",
+                          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                          boxShadow: headerSticky ? (D ? "0 6px 16px rgba(0,0,0,0.35)" : S ? "0 4px 12px rgba(45,18,2,0.15)" : "0 4px 12px rgba(0,0,0,0.08)") : "none",
                         }}>
                           {/* Play/pause button */}
                           <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause" : audioPaused ? "Resume" : "Play"}
@@ -1314,7 +1345,7 @@ function RenZuReader() {
                           {/* Speed control buttons */}
                           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                             {[0.5, 0.75, 1, 1.5, 2].map(speed => (
-                              <button key={speed} onClick={() => setSpeechRate(speed)} 
+                              <button key={speed} onClick={() => switchSpeed(speed)} 
                                 style={{
                                   padding: "5px 9px", fontSize: 10, fontWeight: speechRate === speed ? 600 : 400,
                                   background: speechRate === speed ? (D ? "rgba(200,180,255,0.3)" : S ? "rgba(139,94,26,0.4)" : "rgba(0,0,0,0.12)") : "transparent",
@@ -1421,7 +1452,12 @@ function RenZuReader() {
               </div>
             </div>
 
-            <div style={{ ...sq(26), padding: "36px 40px", marginBottom: 16 }}>
+            <div style={{ 
+              ...sq(26),
+              borderRadius: "30% 28% 32% 29%",
+              padding: "36px 40px", 
+              marginBottom: 16 
+            }}>
               <div style={{ fontSize: 15, color: text, lineHeight: 2.05, fontFamily: bodyFont, letterSpacing: "0.008em" }}>
                 <span className="drop-cap" style={{
                   float: "left", fontSize: 78, lineHeight: 0.75, marginRight: 8, marginTop: 10, marginBottom: 2,
@@ -1481,6 +1517,29 @@ function RenZuReader() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* ── READING PAGE FOOTER WITH LOGO & SOCIALS ── */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 48, paddingTop: 32, borderTop: `1px solid ${border}` }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <img src={IMG_LOGO} alt="The Omniarch" style={{ width: 85, height: 85, objectFit: "contain", filter: "drop-shadow(0 4px 16px rgba(212,168,60,0.35))" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { label: "Discord", href: "https://discord.com/invite/DunazTeMSA", Icon: DiscordIcon },
+                  { label: "YouTube", href: "https://youtube.com/@godofpeakfiction", Icon: YouTubeIcon },
+                  { label: "TikTok", href: "https://www.tiktok.com/@godofpeakfiction", Icon: TikTokIcon },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 10, borderRadius: 999, border: `1px solid ${border}`, color: textMid, fontFamily: headFont, letterSpacing: "0.10em", textTransform: "uppercase", textDecoration: "none", transition: "all 0.17s", background: "transparent" }}
+                    onMouseEnter={e => { e.currentTarget.style.color = text; e.currentTarget.style.borderColor = borderHov; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = textMid; e.currentTarget.style.borderColor = border; }}
+                  ><s.Icon size={13} />{s.label}</a>
+                ))}
+              </div>
+              <div style={{ textAlign: "center", fontSize: 8, color: textDim, letterSpacing: "0.18em", textTransform: "uppercase", fontFamily: headFont }}>
+                The Omniarch · God of Peak Fiction
+              </div>
             </div>
 
           </div>
