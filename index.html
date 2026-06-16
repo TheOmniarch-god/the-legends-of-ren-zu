@@ -783,7 +783,9 @@ function RenZuReader() {
     setAudioPaused(false);
 
     playbackActiveRef.current = true;
-    sentencesRef.current = splitSentences(selected.body.slice(1));
+    const _sents = splitSentences(selected.body.slice(1));
+    if (_sents.length > 0) _sents[0] = selected.body.charAt(0) + _sents[0];
+    sentencesRef.current = _sents;
     sentenceIndexRef.current = 0;
 
     const myChainId = chainIdRef.current;
@@ -804,9 +806,11 @@ function RenZuReader() {
     setSelectionMenu(null);
     setTappedSentenceIdx(-1);
 
-    // Make sure sentences are populated
+    // Make sure sentences are populated (audio needs the full body incl. drop-cap letter)
     if (sentencesRef.current.length === 0) {
-      sentencesRef.current = splitSentences(selected.body.slice(1));
+      const _sents = splitSentences(selected.body.slice(1));
+      if (_sents.length > 0) _sents[0] = selected.body.charAt(0) + _sents[0];
+      sentencesRef.current = _sents;
     }
     playbackActiveRef.current = true;
     sentenceIndexRef.current = Math.max(0, sentenceIdx);
