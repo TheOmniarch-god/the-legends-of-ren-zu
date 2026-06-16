@@ -478,13 +478,16 @@ function RenZuReader() {
   const [transitioning, setTransitioning] = useState(false);
   const [voice, setVoice]           = useState("female");
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioPaused, setAudioPaused] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [audioStatus, setAudioStatus] = useState("");
+  const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
   const utteranceRef = useRef(null);
   const sentenceIndexRef = useRef(0);
   const sentencesRef = useRef([]);
   const playbackActiveRef = useRef(false);
+  const pausedRef = useRef(false);
   const audioContextRef = useRef(null);
   const currentSourceRef = useRef(null);
   const aiRef    = useRef(null);
@@ -505,12 +508,13 @@ function RenZuReader() {
     }, 300);
   }
 
-  // ── Gemini TTS — neural voices via Google Cloud ──────────────────────────
-  // Uses the Gemini TTS API for high-quality neural voices.
-  // Chains sentences for seamless, natural narration.
+  // ── Google Cloud TTS — Neural2 narrator voices ───────────────────────────
+  // Chains sentences for seamless narration with sentence-level highlighting.
+  // Supports true pause/resume by suspending the AudioContext.
 
   function stopAllAudio() {
     playbackActiveRef.current = false;
+    pausedRef.current = false;
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
@@ -521,109 +525,82 @@ function RenZuReader() {
     }
     sentencesRef.current = [];
     sentenceIndexRef.current = 0;
+    setActiveSentenceIdx(-1);
   }
 
   async function playAudioFromBlob(audioBlob) {
     if (!audioBlob || audioBlob.size === 0) return;
-    
-    try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      
-      // Create audio context if needed
-      if (!audioContextRef.current) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) {
-          throw new Error("Web Audio API not supported");
-        }
-        audioContextRef.current = new AudioContext();
-      }
-      const ctx = audioContextRef.current;
-      
-      // Decode audio data
-      let decoded;
-      if (ctx.decodeAudioData.length > 2) {
-        // Callback-based API (older browsers)
-        decoded = await new Promise((resolve, reject) => {
-          ctx.decodeAudioData(
-            arrayBuffer,
-            resolve,
-            reject
-          );
-        });
-      } else {
-        // Promise-based API (modern browsers)
-        decoded = await ctx.decodeAudioData(arrayBuffer);
-      }
-      
-      // Create source and play
-      const source = ctx.createBufferSource();
-      source.buffer = decoded;
-      source.connect(ctx.destination);
-      
-      currentSourceRef.current = source;
-      
-      // Resolve when audio finishes
-      return new Promise((resolve) => {
-        source.onended = resolve;
-        source.start(0);
-      });
-    } catch (err) {
-      console.error("Audio playback error:", err);
-      throw err;
+    const arrayBuffer = await audioBlob.arrayBuffer();
+
+    if (!audioContextRef.current) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) throw new Error("Web Audio API not supported");
+      audioContextRef.current = new AudioContext();
     }
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") await ctx.resume();
+
+    const decoded = await new Promise((resolve, reject) =>
+      ctx.decodeAudioData(arrayBuffer, resolve, reject)
+    );
+
+    const source = ctx.createBufferSource();
+    source.buffer = decoded;
+    source.connect(ctx.destination);
+    currentSourceRef.current = source;
+
+    return new Promise((resolve) => {
+      source.onended = resolve;
+      source.start(0);
+    });
   }
 
   async function speakNextSentence() {
     if (!playbackActiveRef.current) return;
-    
+
     const sentences = sentencesRef.current;
     const idx = sentenceIndexRef.current;
-    
+
     if (idx >= sentences.length) {
       setAudioPlaying(false);
       setAudioLoading(false);
+      setAudioPaused(false);
+      setActiveSentenceIdx(-1);
       playbackActiveRef.current = false;
       return;
     }
 
+    setActiveSentenceIdx(idx);
+
     try {
-      // Fetch audio for this sentence
       const ttsRes = await fetch("/api/ai-chat-tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: sentences[idx],
-          voice: voice
-        })
+        body: JSON.stringify({ text: sentences[idx], voice })
       });
 
       if (!ttsRes.ok) {
         let errMsg = `TTS failed: ${ttsRes.status}`;
-        try {
-          const errBody = await ttsRes.json();
-          if (errBody.error) errMsg += ` — ${errBody.error}`;
-        } catch (_) {}
+        try { const b = await ttsRes.json(); if (b.error) errMsg += ` — ${b.error}`; } catch (_) {}
         throw new Error(errMsg);
       }
 
       const audioBlob = await ttsRes.blob();
-      
-      // Notify that playback started (only on first sentence)
-      if (idx === 0) {
-        setAudioLoading(false);
-        setAudioPlaying(true);
-      }
 
-      // Play the audio
+      if (idx === 0) { setAudioLoading(false); setAudioPlaying(true); }
+
+      // Wait while paused
+      while (pausedRef.current && playbackActiveRef.current) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      if (!playbackActiveRef.current) return;
+
       await playAudioFromBlob(audioBlob);
 
-      // Move to next sentence
-      if (playbackActiveRef.current) {
+      if (playbackActiveRef.current && !pausedRef.current) {
         sentenceIndexRef.current = idx + 1;
         speakNextSentence().catch(err => {
-          console.error("Sentence playback failed:", err);
-          setAudioError(true);
-          setAudioLoading(false);
+          setAudioError(true); setAudioStatus(err.message); setAudioLoading(false);
         });
       }
     } catch (err) {
@@ -632,6 +609,7 @@ function RenZuReader() {
       setAudioStatus(err.message || "Audio playback failed");
       setAudioLoading(false);
       setAudioPlaying(false);
+      setActiveSentenceIdx(-1);
       playbackActiveRef.current = false;
     }
   }
@@ -643,10 +621,7 @@ function RenZuReader() {
     const out = [];
     let cur = "";
     for (const s of parts) {
-      if (cur.length + s.length > maxLen && cur.length > 0) {
-        out.push(cur.trim());
-        cur = "";
-      }
+      if (cur.length + s.length > maxLen && cur.length > 0) { out.push(cur.trim()); cur = ""; }
       cur += s;
     }
     if (cur.trim()) out.push(cur.trim());
@@ -655,23 +630,42 @@ function RenZuReader() {
 
   function toggleAudio() {
     if (audioLoading) return;
+    if (!selected) return;
+
+    // If currently playing → pause
+    if (audioPlaying && !audioPaused) {
+      pausedRef.current = true;
+      setAudioPaused(true);
+      setAudioPlaying(false);
+      if (audioContextRef.current) audioContextRef.current.suspend().catch(() => {});
+      if (currentSourceRef.current) { try { currentSourceRef.current.stop(); } catch (_) {} currentSourceRef.current = null; }
+      return;
+    }
+
+    // If paused → resume from current sentence
+    if (audioPaused) {
+      pausedRef.current = false;
+      setAudioPaused(false);
+      setAudioPlaying(true);
+      playbackActiveRef.current = true;
+      // Re-fetch and play current sentence (audio can't be "resumed" in WebAudio — re-request it)
+      speakNextSentence().catch(err => { setAudioError(true); setAudioLoading(false); });
+      return;
+    }
 
     // Fresh start
-    if (!selected) return;
-    
     stopAllAudio();
     setAudioError(false);
     setAudioLoading(true);
     setAudioStatus("");
     setAudioPlaying(false);
+    setAudioPaused(false);
 
     playbackActiveRef.current = true;
     sentencesRef.current = splitSentences(selected.body);
     sentenceIndexRef.current = 0;
     speakNextSentence().catch(err => {
-      console.error("Audio playback failed:", err);
-      setAudioError(true);
-      setAudioLoading(false);
+      setAudioError(true); setAudioLoading(false);
     });
   }
 
@@ -680,6 +674,7 @@ function RenZuReader() {
     stopAllAudio();
     setAudioError(false);
     setAudioPlaying(false);
+    setAudioPaused(false);
     setAudioLoading(false);
     setAudioStatus("");
     setVoice(v);
@@ -689,6 +684,7 @@ function RenZuReader() {
   useEffect(() => {
     stopAllAudio();
     setAudioPlaying(false);
+    setAudioPaused(false);
     setAudioError(false);
     setAudioLoading(false);
     setAudioStatus("");
@@ -874,6 +870,27 @@ function RenZuReader() {
 
   const firstLetter = selected ? selected.body.charAt(0) : "";
   const restOfBody  = selected ? selected.body.slice(1) : "";
+
+  // Build sentence-highlighted body for narration mode
+  function renderBodyWithHighlight() {
+    // During narration, render each sentence as a span so we can highlight the active one
+    if (audioPlaying || audioPaused) {
+      const sentences = sentencesRef.current;
+      if (sentences.length > 0) {
+        return sentences.map((s, i) => (
+          <span key={i} style={i === activeSentenceIdx ? {
+            background: D ? "rgba(180,160,255,0.22)" : S ? "rgba(139,94,26,0.22)" : "rgba(212,168,60,0.30)",
+            borderRadius: 3,
+            outline: `1.5px solid ${D ? "rgba(180,160,255,0.4)" : S ? "rgba(139,94,26,0.4)" : "rgba(200,150,30,0.5)"}`,
+            transition: "background 0.3s",
+          } : { transition: "background 0.3s" }}>
+            {highlight(s, query)}{" "}
+          </span>
+        ));
+      }
+    }
+    return <>{highlight(restOfBody, query)}</>;
+  }
 
   // Scroll progress bar color
   const progressColor = S
@@ -1201,7 +1218,7 @@ function RenZuReader() {
                 {/* ── Narration player ── */}
                 <div style={{ marginTop: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause narration" : "Play narration"}
+                    <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause narration" : audioPaused ? "Resume narration" : "Play narration"}
                       disabled={audioLoading}
                       style={{
                         flexShrink: 0, width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -1225,24 +1242,29 @@ function RenZuReader() {
                       )}
                     </button>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {["female","male"].map(v => (
+                      {[
+                        { key: "female", label: "Ren Zu · Female" },
+                        { key: "male",   label: "Ren Zu · Male" },
+                      ].map(({ key: v, label }) => (
                         <button key={v} onClick={() => switchVoice(v)} className="tag-pill" style={{
                           padding: "5px 14px", fontSize: 10, borderRadius: 999,
                           border: `1px solid ${voice === v ? tagActiveBorder : border}`,
                           background: voice === v ? tagActiveBg : "transparent",
                           color: voice === v ? tagActiveColor : textDim,
-                          cursor: "pointer", fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.12em", transition: "all 0.15s",
-                        }}>{v === "female" ? "Emma" : "Lewis"}</button>
+                          cursor: "pointer", fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s",
+                        }}>{label}</button>
                       ))}
                     </div>
-                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {audioError
                         ? (audioStatus ? audioStatus.slice(0,60) : "Narration unavailable")
                         : audioPlaying
-                          ? "Narrating…"
-                          : audioLoading
-                            ? "Starting…"
-                            : "Listen — AI Narration"}
+                          ? "Ren Zu Is Speaking…"
+                          : audioPaused
+                            ? "Paused — Ren Zu"
+                            : audioLoading
+                              ? "Summoning Ren Zu…"
+                              : "Listen to Ancestor Ren Zu"}
                     </span>
                   </div>
 
@@ -1260,9 +1282,8 @@ function RenZuReader() {
                 }}>
                   {firstLetter}
                 </span>
-                {highlight(restOfBody, query)}
+                {renderBodyWithHighlight()}
               </div>
-            </div>
 
             <div style={{ ...sq(26), padding: "26px 30px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
