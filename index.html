@@ -695,41 +695,64 @@ function RenZuReader() {
     return out;
   }
 
-  // ── Tap-to-select (Evie-style) — each sentence is a tappable span.
-  // A single tap highlights that sentence and shows the action bar.
-  // Tapping outside or on another sentence dismisses/moves it.
+  // ── Long-press to select (Kindle/Moon+ Reader style) ──
+  // Long press on any sentence highlights it and shows the action bar.
+  // No event race with scroll — the timer is cancelled on any movement.
   const [tappedSentenceIdx, setTappedSentenceIdx] = useState(-1);
+  const longPressTimerRef = useRef(null);
+  const longPressActiveIdxRef = useRef(-1);
+  const longPressMoved = useRef(false);
 
-  function handleSentenceTap(sentenceIdx, sentenceText) {
-    if (tappedSentenceIdx === sentenceIdx) {
-      // Second tap on same sentence = dismiss
-      setTappedSentenceIdx(-1);
-      setSelectionMenu(null);
-    } else {
-      setTappedSentenceIdx(sentenceIdx);
-      setSelectionMenu({ text: sentenceText, sentenceIdx });
-    }
+  const LONG_PRESS_MS = 420;
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
   }
 
-  // ── Single persistent dismiss handler using refs so it never races ──
+  function handleSentencePointerDown(sentenceIdx, sentenceText, e) {
+    // Only primary pointer (finger / left-click)
+    if (e.button !== undefined && e.button !== 0) return;
+    longPressMoved.current = false;
+    longPressActiveIdxRef.current = sentenceIdx;
+    cancelLongPress();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      if (longPressMoved.current) return; // finger drifted — it was a scroll
+      // Haptic feedback on supported devices
+      if (navigator.vibrate) navigator.vibrate(32);
+      if (tappedSentenceIdx === sentenceIdx) {
+        // Long press same sentence = dismiss
+        setTappedSentenceIdx(-1);
+        setSelectionMenu(null);
+      } else {
+        setTappedSentenceIdx(sentenceIdx);
+        setSelectionMenu({ text: sentenceText, sentenceIdx });
+      }
+    }, LONG_PRESS_MS);
+  }
+
+  function handleSentencePointerMove(e) {
+    // If pointer moved more than ~6px, treat as scroll — kill the timer
+    if (!longPressMoved.current) longPressMoved.current = true;
+    cancelLongPress();
+  }
+
+  function handleSentencePointerUp() {
+    cancelLongPress();
+  }
+
+  // ── Dismiss on tap outside (not inside popup, not on a sentence span) ──
   const tappedSentenceIdxRef = useRef(-1);
   const selectionMenuRef = useRef(null);
-  // Keep refs in sync with state
   useEffect(() => { tappedSentenceIdxRef.current = tappedSentenceIdx; }, [tappedSentenceIdx]);
   useEffect(() => { selectionMenuRef.current = selectionMenu; }, [selectionMenu]);
 
-  // Block flag: set true during the pointerup that opened the menu, cleared after
-  const blockNextDismissRef = useRef(false);
-
   useEffect(() => {
-    function onDocPointerUp(e) {
-      // If this pointerup just opened the menu, skip dismiss
-      if (blockNextDismissRef.current) { blockNextDismissRef.current = false; return; }
+    function onDocPointerDown(e) {
       if (tappedSentenceIdxRef.current < 0 && !selectionMenuRef.current) return;
-      // Don't dismiss if inside the popup
       const popup = document.getElementById("sel-menu-popup");
       if (popup && popup.contains(e.target)) return;
-      // Don't dismiss if on a sentence span (onPointerUp handles it)
+      // Don't dismiss if pointerdown is on a sentence span (long-press handler will deal with it)
       let el = e.target;
       while (el) {
         if (el.dataset && "sentIdx" in el.dataset) return;
@@ -738,9 +761,9 @@ function RenZuReader() {
       setTappedSentenceIdx(-1);
       setSelectionMenu(null);
     }
-    document.addEventListener("pointerup", onDocPointerUp, true);
-    return () => document.removeEventListener("pointerup", onDocPointerUp, true);
-  }, []); // mount once, never re-attach
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown, true);
+  }, []);
 
   function toggleAudio() {
     if (audioLoading) return;
@@ -924,10 +947,12 @@ function RenZuReader() {
     return () => document.removeEventListener("copy", onCopy);
   }, [selected]);
 
-  // ── Dismiss selection menu on scroll ──
+  // ── Dismiss selection menu on scroll; also cancel any in-progress long press ──
   useEffect(() => {
-    if (!selectionMenu) return;
-    function onScroll() { setSelectionMenu(null); setTappedSentenceIdx(-1); }
+    function onScroll() {
+      cancelLongPress();
+      if (selectionMenu) { setSelectionMenu(null); setTappedSentenceIdx(-1); }
+    }
     document.addEventListener("touchmove", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, true);
     return () => {
@@ -1101,7 +1126,7 @@ function RenZuReader() {
       }
     }
 
-    // Tap-select mode: every sentence is a tappable span
+    // Long-press select mode: every sentence responds to long press
     if (sentences.length > 0) {
       return sentences.map((s, i) => {
         const isActive = i === tappedSentenceIdx;
@@ -1109,10 +1134,12 @@ function RenZuReader() {
           <span
             key={i}
             data-sent-idx={i}
-            onPointerDown={e => { blockNextDismissRef.current = true; }}
-            onPointerUp={e => { e.stopPropagation(); handleSentenceTap(i, s); }}
+            onPointerDown={e => handleSentencePointerDown(i, s, e)}
+            onPointerMove={handleSentencePointerMove}
+            onPointerUp={handleSentencePointerUp}
+            onPointerCancel={handleSentencePointerUp}
             style={{
-              cursor: "pointer",
+              cursor: "default",
               background: isActive
                 ? (D ? "rgba(255,255,255,0.13)" : S ? "rgba(139,94,26,0.20)" : "rgba(212,168,60,0.28)")
                 : "transparent",
@@ -1123,8 +1150,10 @@ function RenZuReader() {
               transition: "background 0.18s, box-shadow 0.18s",
               WebkitTapHighlightColor: "transparent",
               outline: "none",
-              touchAction: "manipulation",
+              touchAction: "pan-y",
               pointerEvents: "auto",
+              userSelect: "none",
+              WebkitUserSelect: "none",
             }}
           >
             {highlightThemed(s, query, S, D)}{" "}
@@ -1602,7 +1631,7 @@ function RenZuReader() {
               </div>
             </div>
 
-            {/* ── Selection action bar — fixed to bottom so it never fights the browser context menu ── */}
+            {/* ── Selection action bar — fixed to bottom, triggered by long press ── */}
             {selectionMenu && (
               <div id="sel-menu-popup" style={{
                 position: "fixed",
@@ -1623,26 +1652,59 @@ function RenZuReader() {
                 whiteSpace: "nowrap",
               }}>
                 {[
-                  { icon: "▶", label: "From here", action: () => readFromHere(selectionMenu.sentenceIdx) },
-                  { icon: "◉", label: "Selection",  action: () => readSelection(selectionMenu.text) },
-                  { icon: "✦", label: "Ask AI",     action: () => { setSelectionMenu(null); setTappedSentenceIdx(-1); if (customRef.current) { customRef.current.value = selectionMenu.text; customRef.current.focus(); customRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
-                  { icon: "⎘", label: "Copy",       action: () => { navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {}); setSelectionMenu(null); setTappedSentenceIdx(-1); } },
+                  {
+                    icon: "⏮",
+                    label: "From Start",
+                    action: () => { readFromHere(0); }
+                  },
+                  {
+                    icon: "▶",
+                    label: "From Here",
+                    action: () => readFromHere(selectionMenu.sentenceIdx)
+                  },
+                  {
+                    icon: "◉",
+                    label: "Read This",
+                    action: () => readSelection(selectionMenu.text)
+                  },
+                  {
+                    icon: "✦",
+                    label: "Ask AI",
+                    action: () => {
+                      setSelectionMenu(null); setTappedSentenceIdx(-1);
+                      if (customRef.current) {
+                        customRef.current.value = selectionMenu.text;
+                        customRef.current.focus();
+                        customRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }
+                  },
+                  {
+                    icon: "📋",
+                    label: "Copy",
+                    action: () => {
+                      navigator.clipboard?.writeText(selectionMenu.text + "\n\n— The Legends of Ren Zu (Reverend Insanity · Gu Zhen Ren)").catch(() => {});
+                      setSelectionMenu(null); setTappedSentenceIdx(-1);
+                    }
+                  },
                 ].map(({ icon, label, action }) => (
-                  <button key={label} onClick={action} onPointerUp={e => { e.stopPropagation(); action(); }}
+                  <button key={label}
+                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); action(); }}
                     style={{
                       background: "transparent", border: "none", cursor: "pointer",
                       color: "rgba(255,255,255,0.90)", fontFamily: headFont,
-                      padding: "9px 16px", borderRadius: 10,
+                      padding: "9px 13px", borderRadius: 10,
                       display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                      minWidth: 56,
+                      minWidth: 52,
                       touchAction: "manipulation",
                       transition: "background 0.12s",
+                      WebkitTapHighlightColor: "transparent",
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.10)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
-                    <span style={{ fontSize: 16 }}>{icon}</span>
-                    <span style={{ fontSize: 9, opacity: 0.7, letterSpacing: "0.10em", textTransform: "uppercase" }}>{label}</span>
+                    <span style={{ fontSize: 15 }}>{icon}</span>
+                    <span style={{ fontSize: 8.5, opacity: 0.7, letterSpacing: "0.10em", textTransform: "uppercase" }}>{label}</span>
                   </button>
                 ))}
               </div>
