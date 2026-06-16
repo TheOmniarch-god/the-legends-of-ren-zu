@@ -509,6 +509,7 @@ function RenZuReader() {
   const pausedRef = useRef(false);
   const audioContextRef = useRef(null);
   const currentSourceRef = useRef(null);
+  const chainIdRef = useRef(0);
   const aiRef    = useRef(null);
   const customRef = useRef(null);
   const topRef   = useRef(null);
@@ -527,11 +528,16 @@ function RenZuReader() {
     }, 300);
   }
 
-  // ── Google Cloud TTS — Chirp 3 HD narrator voices ───────────────────────────
+  // ── Google Cloud TTS — Studio narrator voices ────────────────────────────────
   // Chains sentences for seamless narration with sentence-level highlighting.
-  // Supports true pause/resume by suspending the AudioContext.
+  // Supports true pause/resume: pausing suspends the AudioContext and holds the
+  // chain in a wait-loop; resuming just flips the flag so the same chain continues.
+  // A chainIdRef ensures only one chain is ever active — switching voice, chapter,
+  // or stopping increments the ID, making any running chain abandon itself.
 
   function stopAllAudio() {
+    // Invalidate any running chain by bumping the chain ID
+    chainIdRef.current += 1;
     playbackActiveRef.current = false;
     pausedRef.current = false;
     if (audioContextRef.current) {
@@ -547,9 +553,13 @@ function RenZuReader() {
     setActiveSentenceIdx(-1);
   }
 
-  async function playAudioFromBlob(audioBlob) {
+  async function playAudioFromBlob(audioBlob, myChainId) {
     if (!audioBlob || audioBlob.size === 0) return;
+    // Abort if this chain is stale
+    if (chainIdRef.current !== myChainId) return;
+
     const arrayBuffer = await audioBlob.arrayBuffer();
+    if (chainIdRef.current !== myChainId) return;
 
     if (!audioContextRef.current) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -558,10 +568,13 @@ function RenZuReader() {
     }
     const ctx = audioContextRef.current;
     if (ctx.state === "suspended") await ctx.resume();
+    if (chainIdRef.current !== myChainId) return;
 
     const decoded = await new Promise((resolve, reject) =>
       ctx.decodeAudioData(arrayBuffer, resolve, reject)
     );
+
+    if (chainIdRef.current !== myChainId) return;
 
     const source = ctx.createBufferSource();
     source.buffer = decoded;
@@ -574,62 +587,69 @@ function RenZuReader() {
     });
   }
 
-  async function speakNextSentence() {
-    if (!playbackActiveRef.current) return;
+  async function runChain(myChainId) {
+    while (true) {
+      // Abort if chain was superseded
+      if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
 
-    const sentences = sentencesRef.current;
-    const idx = sentenceIndexRef.current;
+      const sentences = sentencesRef.current;
+      const idx = sentenceIndexRef.current;
 
-    if (idx >= sentences.length) {
-      setAudioPlaying(false);
-      setAudioLoading(false);
-      setAudioPaused(false);
-      setActiveSentenceIdx(-1);
-      playbackActiveRef.current = false;
-      return;
-    }
-
-    setActiveSentenceIdx(idx);
-
-    try {
-      const ttsRes = await fetch("/api/ai-chat-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: sentences[idx], voice, speakingRate: speechRate })
-      });
-
-      if (!ttsRes.ok) {
-        let errMsg = `TTS failed: ${ttsRes.status}`;
-        try { const b = await ttsRes.json(); if (b.error) errMsg += ` — ${b.error}`; } catch (_) {}
-        throw new Error(errMsg);
+      if (idx >= sentences.length) {
+        setAudioPlaying(false);
+        setAudioLoading(false);
+        setAudioPaused(false);
+        setActiveSentenceIdx(-1);
+        playbackActiveRef.current = false;
+        return;
       }
 
-      const audioBlob = await ttsRes.blob();
+      setActiveSentenceIdx(idx);
 
-      if (idx === 0) { setAudioLoading(false); setAudioPlaying(true); }
-
-      // Wait while paused
-      while (pausedRef.current && playbackActiveRef.current) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-      if (!playbackActiveRef.current) return;
-
-      await playAudioFromBlob(audioBlob);
-
-      if (playbackActiveRef.current && !pausedRef.current) {
-        sentenceIndexRef.current = idx + 1;
-        speakNextSentence().catch(err => {
-          setAudioError(true); setAudioStatus(err.message); setAudioLoading(false);
+      try {
+        const ttsRes = await fetch("/api/ai-chat-tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: sentences[idx], voice, speakingRate: speechRate })
         });
+
+        if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+
+        if (!ttsRes.ok) {
+          let errMsg = `TTS failed: ${ttsRes.status}`;
+          try { const b = await ttsRes.json(); if (b.error) errMsg += ` — ${b.error}`; } catch (_) {}
+          throw new Error(errMsg);
+        }
+
+        const audioBlob = await ttsRes.blob();
+        if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+
+        if (idx === 0) { setAudioLoading(false); setAudioPlaying(true); }
+
+        // Wait while paused — the AudioContext is suspended so no sound plays;
+        // we just hold here until resumed or stopped.
+        while (pausedRef.current) {
+          if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+          await new Promise(r => setTimeout(r, 80));
+        }
+        if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+
+        await playAudioFromBlob(audioBlob, myChainId);
+        if (chainIdRef.current !== myChainId || !playbackActiveRef.current) return;
+
+        sentenceIndexRef.current = idx + 1;
+        // loop continues to next sentence
+      } catch (err) {
+        if (chainIdRef.current !== myChainId) return; // stale chain, silently exit
+        console.error("TTS error:", err);
+        setAudioError(true);
+        setAudioStatus(err.message || "Audio playback failed");
+        setAudioLoading(false);
+        setAudioPlaying(false);
+        setActiveSentenceIdx(-1);
+        playbackActiveRef.current = false;
+        return;
       }
-    } catch (err) {
-      console.error("TTS error:", err);
-      setAudioError(true);
-      setAudioStatus(err.message || "Audio playback failed");
-      setAudioLoading(false);
-      setAudioPlaying(false);
-      setActiveSentenceIdx(-1);
-      playbackActiveRef.current = false;
     }
   }
 
@@ -656,19 +676,24 @@ function RenZuReader() {
       pausedRef.current = true;
       setAudioPaused(true);
       setAudioPlaying(false);
+      // Suspend context so audio output stops immediately
       if (audioContextRef.current) audioContextRef.current.suspend().catch(() => {});
-      if (currentSourceRef.current) { try { currentSourceRef.current.stop(); } catch (_) {} currentSourceRef.current = null; }
+      // Stop the current source so it doesn't keep buffering/playing after resume
+      if (currentSourceRef.current) {
+        try { currentSourceRef.current.stop(); } catch (_) {}
+        currentSourceRef.current = null;
+      }
       return;
     }
 
-    // If paused → resume from current sentence
+    // If paused → resume (just flip the flag; the running chain's wait-loop will continue)
     if (audioPaused) {
       pausedRef.current = false;
       setAudioPaused(false);
       setAudioPlaying(true);
-      playbackActiveRef.current = true;
-      // Re-fetch and play current sentence (audio can't be "resumed" in WebAudio — re-request it)
-      speakNextSentence().catch(err => { setAudioError(true); setAudioLoading(false); });
+      // Resume context so subsequent sentences can play
+      if (audioContextRef.current) audioContextRef.current.resume().catch(() => {});
+      // Do NOT call runChain() here — the existing chain is still looping in its wait-loop
       return;
     }
 
@@ -683,13 +708,16 @@ function RenZuReader() {
     playbackActiveRef.current = true;
     sentencesRef.current = splitSentences(selected.body);
     sentenceIndexRef.current = 0;
-    speakNextSentence().catch(err => {
+
+    const myChainId = chainIdRef.current;
+    runChain(myChainId).catch(err => {
       setAudioError(true); setAudioLoading(false);
     });
   }
 
   function switchVoice(v) {
     if (v === voice) return;
+    // stopAllAudio bumps chainIdRef, killing any running chain
     stopAllAudio();
     setAudioError(false);
     setAudioPlaying(false);
