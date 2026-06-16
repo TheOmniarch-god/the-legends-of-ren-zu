@@ -476,7 +476,8 @@ function RenZuReader() {
   const [aiStreaming, setAiStreaming] = useState(false);
   const [hovered, setHovered]       = useState(null);
   const [transitioning, setTransitioning] = useState(false);
-  const [voice, setVoice]           = useState("female");
+  const [voice, setVoice]           = useState("en-US-Neural2-D");
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [audioPaused, setAudioPaused] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
@@ -680,7 +681,7 @@ function RenZuReader() {
     setVoice(v);
   }
 
-  // Stop audio when chapter changes
+  // Close voice picker when chapter changes
   useEffect(() => {
     stopAllAudio();
     setAudioPlaying(false);
@@ -688,6 +689,7 @@ function RenZuReader() {
     setAudioError(false);
     setAudioLoading(false);
     setAudioStatus("");
+    setVoicePickerOpen(false);
   }, [selected]);
 
   function select(c) {
@@ -1217,57 +1219,126 @@ function RenZuReader() {
 
                 {/* ── Narration player ── */}
                 <div style={{ marginTop: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause narration" : audioPaused ? "Resume narration" : "Play narration"}
-                      disabled={audioLoading}
-                      style={{
-                        flexShrink: 0, width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        background: D ? "rgba(255,255,255,0.07)" : S ? "rgba(101,66,20,0.12)" : "rgba(0,0,0,0.07)",
-                        border: `1px solid ${border}`, color: text, cursor: audioLoading ? "default" : "pointer", transition: "all 0.17s",
-                        opacity: audioLoading ? 0.6 : 1,
-                      }}
-                      onMouseEnter={e => { if (!audioLoading) e.currentTarget.style.borderColor = borderHov; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = border; }}
-                    >
-                      {audioLoading ? (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2.5" strokeLinecap="round">
-                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
-                            <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
-                          </path>
-                        </svg>
-                      ) : audioPlaying ? (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
-                      ) : (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><path d="M6 4 L20 12 L6 20 Z"/></svg>
-                      )}
-                    </button>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {[
-                        { key: "female", label: "Ren Zu · Female" },
-                        { key: "male",   label: "Ren Zu · Male" },
-                      ].map(({ key: v, label }) => (
-                        <button key={v} onClick={() => switchVoice(v)} className="tag-pill" style={{
-                          padding: "5px 14px", fontSize: 10, borderRadius: 999,
-                          border: `1px solid ${voice === v ? tagActiveBorder : border}`,
-                          background: voice === v ? tagActiveBg : "transparent",
-                          color: voice === v ? tagActiveColor : textDim,
-                          cursor: "pointer", fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s",
-                        }}>{label}</button>
-                      ))}
-                    </div>
-                    <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {audioError
-                        ? (audioStatus ? audioStatus.slice(0,60) : "Narration unavailable")
-                        : audioPlaying
-                          ? "Ren Zu Is Speaking…"
-                          : audioPaused
-                            ? "Paused — Ren Zu"
-                            : audioLoading
-                              ? "Summoning Ren Zu…"
-                              : "Listen to Ancestor Ren Zu"}
-                    </span>
-                  </div>
+                  {(() => {
+                    const VOICES = [
+                      { key: "en-US-Neural2-D", name: "Aldric",   gender: "♂", desc: "Deep · Commanding" },
+                      { key: "en-US-Neural2-A", name: "Callen",   gender: "♂", desc: "Warm · Storyteller" },
+                      { key: "en-US-Neural2-I", name: "Emryn",    gender: "♂", desc: "Clear · Steady" },
+                      { key: "en-US-Neural2-J", name: "Gareth",   gender: "♂", desc: "Rich · Resonant" },
+                      { key: "en-US-Neural2-C", name: "Seraphine",gender: "♀", desc: "Mature · Authoritative" },
+                      { key: "en-US-Neural2-E", name: "Lyra",     gender: "♀", desc: "Expressive · Vivid" },
+                      { key: "en-US-Neural2-G", name: "Mireille", gender: "♀", desc: "Soft · Ethereal" },
+                      { key: "en-US-Neural2-H", name: "Vashti",   gender: "♀", desc: "Bright · Precise" },
+                    ];
+                    const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
+                    return (
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          {/* Play/pause button */}
+                          <button onClick={toggleAudio} aria-label={audioPlaying ? "Pause" : audioPaused ? "Resume" : "Play"}
+                            disabled={audioLoading}
+                            style={{
+                              flexShrink: 0, width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                              background: D ? "rgba(255,255,255,0.07)" : S ? "rgba(101,66,20,0.12)" : "rgba(0,0,0,0.07)",
+                              border: `1px solid ${border}`, color: text, cursor: audioLoading ? "default" : "pointer", transition: "all 0.17s",
+                              opacity: audioLoading ? 0.6 : 1,
+                            }}
+                            onMouseEnter={e => { if (!audioLoading) e.currentTarget.style.borderColor = borderHov; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = border; }}
+                          >
+                            {audioLoading ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                                  <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+                                </path>
+                              </svg>
+                            ) : audioPlaying ? (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
+                            ) : (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill={text}><path d="M6 4 L20 12 L6 20 Z"/></svg>
+                            )}
+                          </button>
 
+                          {/* Voice selector button */}
+                          <button onClick={() => setVoicePickerOpen(o => !o)} style={{
+                            display: "flex", alignItems: "center", gap: 7, padding: "6px 12px 6px 10px",
+                            background: voicePickerOpen ? (D ? "rgba(255,255,255,0.09)" : S ? "rgba(101,66,20,0.16)" : "rgba(0,0,0,0.07)") : "transparent",
+                            border: `1px solid ${voicePickerOpen ? borderHov : border}`,
+                            borderRadius: 10, cursor: "pointer", color: text, fontFamily: headFont,
+                            transition: "all 0.15s",
+                          }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = borderHov}
+                            onMouseLeave={e => { if (!voicePickerOpen) e.currentTarget.style.borderColor = border; }}
+                          >
+                            <span style={{ fontSize: 13 }}>{activeVoice.gender}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.04em" }}>{activeVoice.name}</span>
+                            <span style={{ fontSize: 9, color: textDim, letterSpacing: "0.06em" }}>{activeVoice.desc}</span>
+                            <span style={{ fontSize: 9, color: textDim, marginLeft: 2, transition: "transform 0.2s", display: "inline-block", transform: voicePickerOpen ? "rotate(180deg)" : "none" }}>▼</span>
+                          </button>
+
+                          {/* Status text */}
+                          <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: audioError ? "tomato" : textDim, fontFamily: headFont }}>
+                            {audioError
+                              ? (audioStatus ? audioStatus.slice(0,50) : "Unavailable")
+                              : audioPlaying ? "Ren Zu Is Speaking…"
+                              : audioPaused ? "Paused"
+                              : audioLoading ? "Summoning…"
+                              : ""}
+                          </span>
+                        </div>
+
+                        {/* Voice picker dropdown */}
+                        {voicePickerOpen && (
+                          <div style={{
+                            marginTop: 10, borderRadius: 14,
+                            background: D ? "rgba(0,0,0,0.90)" : S ? "rgba(232,210,158,0.95)" : "rgba(255,255,255,0.96)",
+                            border: `1px solid ${border}`,
+                            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                            boxShadow: D ? "0 8px 32px rgba(0,0,0,0.8)" : "0 8px 32px rgba(0,0,0,0.12)",
+                            overflow: "hidden", animation: "fadeUp 0.18s ease both",
+                          }}>
+                            {/* Male */}
+                            <div style={{ padding: "10px 14px 4px", fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase", color: textDim, fontFamily: headFont }}>Male voices</div>
+                            {VOICES.filter(v => v.gender === "♂").map(v => (
+                              <button key={v.key} onClick={() => { switchVoice(v.key); setVoicePickerOpen(false); }} style={{
+                                width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px",
+                                background: voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent",
+                                border: "none", cursor: "pointer", textAlign: "left", fontFamily: headFont,
+                                borderLeft: voice === v.key ? `2px solid ${D ? "rgba(200,180,255,0.6)" : S ? "rgba(139,94,26,0.8)" : "rgba(0,0,0,0.35)"}` : "2px solid transparent",
+                                transition: "background 0.12s",
+                              }}
+                                onMouseEnter={e => e.currentTarget.style.background = D ? "rgba(255,255,255,0.06)" : S ? "rgba(101,66,20,0.10)" : "rgba(0,0,0,0.04)"}
+                                onMouseLeave={e => e.currentTarget.style.background = voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent"}
+                              >
+                                <span style={{ fontSize: 14 }}>{v.gender}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 68 }}>{v.name}</span>
+                                <span style={{ fontSize: 10, color: textDim }}>{v.desc}</span>
+                              </button>
+                            ))}
+                            {/* Female */}
+                            <div style={{ padding: "10px 14px 4px", fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase", color: textDim, fontFamily: headFont, borderTop: `1px solid ${border}`, marginTop: 4 }}>Female voices</div>
+                            {VOICES.filter(v => v.gender === "♀").map(v => (
+                              <button key={v.key} onClick={() => { switchVoice(v.key); setVoicePickerOpen(false); }} style={{
+                                width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px",
+                                background: voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent",
+                                border: "none", cursor: "pointer", textAlign: "left", fontFamily: headFont,
+                                borderLeft: voice === v.key ? `2px solid ${D ? "rgba(200,180,255,0.6)" : S ? "rgba(139,94,26,0.8)" : "rgba(0,0,0,0.35)"}` : "2px solid transparent",
+                                transition: "background 0.12s",
+                              }}
+                                onMouseEnter={e => e.currentTarget.style.background = D ? "rgba(255,255,255,0.06)" : S ? "rgba(101,66,20,0.10)" : "rgba(0,0,0,0.04)"}
+                                onMouseLeave={e => e.currentTarget.style.background = voice === v.key ? (D ? "rgba(255,255,255,0.08)" : S ? "rgba(101,66,20,0.14)" : "rgba(0,0,0,0.05)") : "transparent"}
+                              >
+                                <span style={{ fontSize: 14 }}>{v.gender}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: text, minWidth: 68 }}>{v.name}</span>
+                                <span style={{ fontSize: 10, color: textDim }}>{v.desc}</span>
+                              </button>
+                            ))}
+                            <div style={{ height: 6 }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
