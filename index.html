@@ -490,7 +490,7 @@ function RenZuReader() {
   const [aiStreaming, setAiStreaming] = useState(false);
   const [hovered, setHovered]       = useState(null);
   const [transitioning, setTransitioning] = useState(false);
-  const [voice, setVoice]           = useState("en-GB-Neural2-B");
+  const [voice, setVoice]           = useState("en-GB-Studio-B");
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const [speechRate, setSpeechRate]  = useState(1);
   const [accentRegion, setAccentRegion] = useState("british");
@@ -527,7 +527,7 @@ function RenZuReader() {
     }, 300);
   }
 
-  // ── Google Cloud TTS — Neural2 narrator voices ───────────────────────────
+  // ── Google Cloud TTS — Chirp 3 HD narrator voices ───────────────────────────
   // Chains sentences for seamless narration with sentence-level highlighting.
   // Supports true pause/resume by suspending the AudioContext.
 
@@ -1239,19 +1239,19 @@ function RenZuReader() {
                 <div style={{ marginTop: 18 }}>
                   {(() => {
                     const VOICES = [
-                      // British Male - Bold & Commanding
-                      { key: "en-GB-Neural2-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-D", name: "Adrian",    gender: "♂", desc: "Deep · Authoritative",  accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-C", name: "Theogenes", gender: "♂", desc: "Stern · Powerful",     accent: "🇬🇧", region: "british" },
-                      // American Male - Bold & Commanding
-                      { key: "en-US-Neural2-D", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-A", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-J", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸", region: "american" },
-                      // Female Voices
-                      { key: "en-US-Neural2-C", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸", region: "american" },
-                      { key: "en-US-Neural2-E", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸", region: "american" },
-                      { key: "en-GB-Neural2-A", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧", region: "british" },
-                      { key: "en-GB-Neural2-F", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧", region: "british" },
+                      // British Male - Bold & Commanding (Chirp 3 HD)
+                      { key: "en-GB-Studio-B", name: "Edmund",    gender: "♂", desc: "Noble · Measured",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-D", name: "Adrian",    gender: "♂", desc: "Deep · Authoritative",  accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-A", name: "Theogenes", gender: "♂", desc: "Stern · Powerful",     accent: "🇬🇧", region: "british" },
+                      // American Male - Bold & Commanding (Chirp 3 HD)
+                      { key: "en-US-Studio-O", name: "Aldric",    gender: "♂", desc: "Deep · Commanding",     accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-C", name: "Callen",    gender: "♂", desc: "Warm · Storyteller",    accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-Q", name: "Gareth",    gender: "♂", desc: "Rich · Resonant",       accent: "🇺🇸", region: "american" },
+                      // Female Voices (Chirp 3 HD)
+                      { key: "en-US-Studio-E", name: "Seraphine", gender: "♀", desc: "Mature · Authoritative",accent: "🇺🇸", region: "american" },
+                      { key: "en-US-Studio-F", name: "Lyra",      gender: "♀", desc: "Expressive · Vivid",    accent: "🇺🇸", region: "american" },
+                      { key: "en-GB-Studio-F", name: "Isolde",    gender: "♀", desc: "Refined · Poised",      accent: "🇬🇧", region: "british" },
+                      { key: "en-GB-Studio-C", name: "Rowena",    gender: "♀", desc: "Crisp · Classical",     accent: "🇬🇧", region: "british" },
                     ];
                     const activeVoice = VOICES.find(v => v.key === voice) || VOICES[0];
                     return (
