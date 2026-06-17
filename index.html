@@ -677,7 +677,7 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S }) {
 }
 
 // ─── Profile Modal — realm, username, essence balance ─────────────────────────
-function ProfileModal({ open, onClose, D, S, deviceId, username, email, tierName, tierIcon, essenceStatus, onSave }) {
+function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, tierName, tierIcon, essenceStatus, onSave }) {
   const [editName, setEditName] = useState(username);
   const [editEmail, setEditEmail] = useState(email);
   if (!open) return null;
@@ -2515,6 +2515,7 @@ function getOrBuildSentences() {
           deviceId={deviceId}
           username={userName}
           email={userEmail}
+          tier={tier}
           tierName={getTierName()}
           tierIcon={getTierIcon()}
           essenceStatus={essenceStatus}
