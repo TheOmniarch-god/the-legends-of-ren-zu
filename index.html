@@ -760,7 +760,7 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
   );
 }
 
-// ─── Ascension Overlay — realm animation on token refinement ─────────────────
+// ─── Ascension Overlay — summoning circle → talisman flip → burst → realm reveal ──
 function AscensionOverlay({ tier }) {
   if (!tier) return null;
   const images = {
@@ -781,47 +781,135 @@ function AscensionOverlay({ tier }) {
     gu_immortal: "You have ascended. The immortal aperture opens.",
     venerable: "You stand at the peak. Fate itself bows.",
   };
+
+  // Per-tier intensity — colour, particle count, and whether the screen shakes on burst.
+  const FX = {
+    mortal:      { accent: "150,140,120", glow: "150,140,120", particles: 7,  shake: false },
+    gu_master:   { accent: "90,210,150",  glow: "70,200,140",  particles: 13, shake: false },
+    gu_immortal: { accent: "255,210,90",  glow: "255,170,40",  particles: 20, shake: false },
+    venerable:   { accent: "255,110,70",  glow: "255,190,60",  particles: 30, shake: true  },
+  };
+  const fx = FX[tier] || FX.mortal;
+
+  const particles = Array.from({ length: fx.particles }, (_, i) => {
+    const angle = (360 / fx.particles) * i + (Math.random() * 16 - 8);
+    const dist = 85 + Math.random() * 75;
+    const size = 3 + Math.random() * 4;
+    const delay = 0.95 + Math.random() * 0.15;
+    const rad = (angle * Math.PI) / 180;
+    return { key: i, ex: Math.cos(rad) * dist, ey: Math.sin(rad) * dist, size, delay };
+  });
+
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 10002,
       background: "rgba(0,0,0,0.92)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      animation: "ascensionIn 0.8s ease both",
+      animation: fx.shake ? "ascensionIn 0.8s ease both, ascensionShake 0.45s 0.95s ease" : "ascensionIn 0.8s ease both",
     }}>
       <style>{`
         @keyframes ascensionIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes ascensionShake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-7px,4px); } 40% { transform: translate(6px,-5px); } 60% { transform: translate(-5px,3px); } 80% { transform: translate(4px,-2px); } }
+        @keyframes circleDraw { 0% { opacity: 0; transform: scale(0.5) rotate(-25deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+        @keyframes ringSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes cardFlipIn { 0% { opacity: 0; transform: rotateY(110deg) scale(0.6); } 55% { opacity: 1; } 100% { opacity: 1; transform: rotateY(0deg) scale(1); } }
+        @keyframes sealGlyph { 0%,65% { opacity: 0; transform: scale(0.6); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes cardBurstOut { 0% { opacity: 1; transform: scale(1) rotateY(0deg); } 100% { opacity: 0; transform: scale(1.5) rotateY(40deg); } }
+        @keyframes burstFlash { 0% { opacity: 0; transform: scale(0.2); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(2.6); } }
+        @keyframes particleFly { 0% { opacity: 0; transform: translate(0,0) scale(1); } 12% { opacity: 1; } 100% { opacity: 0; transform: var(--p-end) scale(0.25); } }
         @keyframes ascensionFlash { 0% { opacity: 0; transform: scale(0.6); } 40% { opacity: 1; transform: scale(1.15); } 60% { opacity: 1; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1); } }
         @keyframes ascensionRing { 0% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 0.2; } 100% { transform: scale(1.5); opacity: 0; } }
-        @keyframes ascensionPulse { 0%,100% { filter: drop-shadow(0 0 20px rgba(255,200,60,0.6)) contrast(1); } 50% { filter: drop-shadow(0 0 70px rgba(255,120,30,0.9)) contrast(1.15); } }
+        @keyframes ascensionPulse { 0%,100% { filter: drop-shadow(0 0 20px rgba(${fx.glow},0.6)) contrast(1); } 50% { filter: drop-shadow(0 0 70px rgba(${fx.glow},0.9)) contrast(1.15); } }
         @keyframes ascensionText { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
       `}</style>
-      <div style={{ position: "relative", width: "min(280px, 60vw)", height: "min(280px, 60vw)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+
+      <div style={{
+        position: "relative", width: "min(280px, 60vw)", height: "min(280px, 60vw)",
+        display: "flex", alignItems: "center", justifyContent: "center", perspective: 700,
+      }}>
+
+        {/* Summoning circle — draws in first */}
+        <svg viewBox="0 0 200 200" style={{
+          position: "absolute", width: "150%", height: "150%",
+          animation: "circleDraw 0.55s 0.05s cubic-bezier(.2,.8,.3,1) both",
+        }}>
+          <circle cx="100" cy="100" r="90" fill="none" stroke={`rgba(${fx.accent},0.55)`} strokeWidth="1.4" strokeDasharray="6 4" />
+          <circle cx="100" cy="100" r="70" fill="none" stroke={`rgba(${fx.accent},0.35)`} strokeWidth="1" />
+        </svg>
+        <svg viewBox="0 0 200 200" style={{
+          position: "absolute", width: "150%", height: "150%",
+          opacity: 0, animation: "ringSpin 6s linear infinite, ascensionIn 0.4s 0.4s ease forwards",
+        }}>
+          {Array.from({ length: 12 }).map((_, i) => {
+            const a = (360 / 12) * i;
+            const rad = (a * Math.PI) / 180;
+            return (
+              <line key={i}
+                x1={100 + Math.cos(rad) * 84} y1={100 + Math.sin(rad) * 84}
+                x2={100 + Math.cos(rad) * 92} y2={100 + Math.sin(rad) * 92}
+                stroke={`rgba(${fx.accent},0.5)`} strokeWidth="2"
+              />
+            );
+          })}
+        </svg>
+
+        {/* Sealed talisman card — flips in, cracks, then bursts open */}
+        <div style={{
+          position: "absolute", width: 92, height: 130, borderRadius: 8,
+          background: "linear-gradient(160deg, #2a2018, #14100b)",
+          border: `1px solid rgba(${fx.accent},0.5)`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, color: `rgba(${fx.accent},1)`,
+          boxShadow: `0 0 24px rgba(${fx.glow},0.45)`,
+          animation: "cardFlipIn 0.4s 0.3s cubic-bezier(.2,.8,.3,1) both, cardBurstOut 0.3s 0.95s ease forwards",
+        }}>
+          <span style={{ animation: "sealGlyph 0.25s 0.65s ease both", display: "inline-block" }}>✦</span>
+        </div>
+
+        {/* Flash + flung motes at the moment the seal breaks */}
+        <div style={{
+          position: "absolute", inset: -10, borderRadius: "50%",
+          background: `radial-gradient(circle, rgba(${fx.glow},0.9) 0%, rgba(${fx.glow},0.2) 40%, transparent 70%)`,
+          animation: "burstFlash 0.55s 0.92s ease-out both",
+        }} />
+        {particles.map(p => (
+          <div key={p.key} style={{
+            position: "absolute", top: "50%", left: "50%", width: p.size, height: p.size, borderRadius: "50%",
+            background: `rgba(${fx.glow},0.95)`, boxShadow: `0 0 6px rgba(${fx.glow},0.8)`,
+            "--p-end": `translate(${p.ex}px, ${p.ey}px)`,
+            animation: `particleFly 0.85s ${p.delay}s cubic-bezier(.15,.6,.3,1) both`,
+          }} />
+        ))}
+
+        {/* Ambient glow rings around the settled portrait */}
         <div style={{
           position: "absolute", inset: -20, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(255,200,60,0.25) 0%, transparent 70%)",
-          animation: "ascensionRing 1.4s ease-out infinite",
+          background: `radial-gradient(circle, rgba(${fx.glow},0.25) 0%, transparent 70%)`,
+          animation: "ascensionRing 1.4s 1.0s ease-out infinite",
         }} />
         <div style={{
           position: "absolute", inset: -40, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(255,80,80,0.15) 0%, transparent 70%)",
-          animation: "ascensionRing 1.8s 0.3s ease-out infinite",
+          background: `radial-gradient(circle, rgba(${fx.accent},0.15) 0%, transparent 70%)`,
+          animation: "ascensionRing 1.8s 1.3s ease-out infinite",
         }} />
+
+        {/* Realm portrait reveal */}
         <img src={images[tier]} alt={titles[tier]} style={{
           width: "100%", height: "100%", objectFit: "cover",
-          borderRadius: "50%", border: "3px solid rgba(255,200,60,0.6)",
-          animation: "ascensionFlash 0.8s cubic-bezier(.2,.8,.3,1) both, ascensionPulse 1.6s ease-in-out infinite",
+          borderRadius: "50%", border: `3px solid rgba(${fx.accent},0.7)`, opacity: 0,
+          animation: "ascensionFlash 0.7s 1.0s cubic-bezier(.2,.8,.3,1) both, ascensionPulse 1.6s 1.35s ease-in-out infinite",
         }} />
       </div>
+
       <div style={{
         marginTop: 28, fontFamily: "Metamorphous, Georgia, serif", fontSize: 28, fontWeight: 700,
-        color: "#ffe8a0", letterSpacing: "0.06em",
-        textShadow: "0 0 20px rgba(255,160,30,0.9), 0 0 40px rgba(200,80,20,0.6)",
-        animation: "ascensionText 0.6s 0.5s ease both",
+        color: "#ffe8a0", letterSpacing: "0.06em", opacity: 0,
+        textShadow: `0 0 20px rgba(${fx.glow},0.9), 0 0 40px rgba(${fx.accent},0.6)`,
+        animation: "ascensionText 0.6s 1.55s ease both",
       }}>{titles[tier]}</div>
       <div style={{
         marginTop: 10, fontSize: 14, color: "rgba(255,235,180,0.85)", maxWidth: 320, textAlign: "center",
-        fontFamily: "'IM Fell English', Georgia, serif", lineHeight: 1.5,
-        animation: "ascensionText 0.6s 0.8s ease both",
+        fontFamily: "'IM Fell English', Georgia, serif", lineHeight: 1.5, opacity: 0,
+        animation: "ascensionText 0.6s 1.85s ease both",
       }}>{subtitles[tier]}</div>
     </div>
   );
