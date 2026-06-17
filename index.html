@@ -582,18 +582,18 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S }) {
           />
           <Tier
             title="Gu Master Pack"
-            realm="20 Narrations + 100 Chats"
-            price="$4.99"
-            desc="A solid start for a mortal ascending."
+            realm="42 Narrations + 100 Chats"
+            price="$4.99 one-time"
+            desc="Full book + 5 extra narrations. 100 Ask Ren Zu questions."
             icon="💎"
             primary
             href={`https://paystack.com/pay/YOUR_PAYSTACK_GUMASTER_LINK?deviceId=${encodeURIComponent(deviceId || '')}&plan=gu_master`}
           />
           <Tier
             title="Gu Immortal Pass"
-            realm="Full Book + Unlimited Chat"
-            price="$9.99"
-            desc="50 narrations + unlimited chat. One-time."
+            realm="500 Narrations + Unlimited Chat"
+            price="$9.99 one-time"
+            desc="Listen to the entire book 11+ times. Unlimited Ask Ren Zu."
             icon="✨"
             primary
             href={`https://paystack.com/pay/YOUR_PAYSTACK_GUIMMORTAL_LINK?deviceId=${encodeURIComponent(deviceId || '')}&plan=gu_immortal`}
@@ -601,7 +601,7 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S }) {
           <Tier
             title="Venerable Ascension"
             realm="Everything Forever"
-            price="$15+"
+            price="$15+ one-time"
             desc="Unlimited narrations + chat. Supreme supporter."
             icon="👑"
             primary
@@ -756,6 +756,59 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tierName
   );
 }
 
+// ─── Ascension Overlay — realm animation on token refinement ─────────────────
+function AscensionOverlay({ tier }) {
+  if (!tier) return null;
+  const images = {
+    mortal: "assets/realm-mortal.png",
+    gu_master: "assets/realm-gumaster.png",
+    gu_immortal: "assets/realm-guimmortal.png",
+    venerable: "assets/realm-venerable.png",
+  };
+  const titles = {
+    mortal: "Mortal Aperture",
+    gu_master: "Gu Master",
+    gu_immortal: "Gu Immortal",
+    venerable: "Venerable",
+  };
+  const subtitles = {
+    mortal: "The journey begins in dust and struggle.",
+    gu_master: "You have refined your aperture. Primeval essence flows.",
+    gu_immortal: "You have ascended. The immortal aperture opens.",
+    venerable: "You stand at the peak. Fate itself bows.",
+  };
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 10002,
+      background: "rgba(0,0,0,0.92)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      animation: "ascensionIn 0.8s ease both",
+    }}>
+      <style>{`
+        @keyframes ascensionIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes ascensionImg { 0% { opacity: 0; transform: scale(0.7) translateY(40px); filter: blur(14px); } 60% { opacity: 1; transform: scale(1.05) translateY(-8px); filter: blur(0); } 100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
+        @keyframes ascensionGlow { 0%,100% { filter: drop-shadow(0 0 30px rgba(200,160,60,0.4)); } 50% { filter: drop-shadow(0 0 80px rgba(220,190,80,0.8)); } }
+        @keyframes ascensionText { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+      `}</style>
+      <img src={images[tier]} alt={titles[tier]} style={{
+        width: "min(280px, 60vw)", height: "min(280px, 60vw)", objectFit: "cover",
+        borderRadius: "50%", border: "2px solid rgba(200,160,60,0.4)",
+        animation: "ascensionImg 1.2s cubic-bezier(.2,.8,.3,1) both, ascensionGlow 2.5s ease-in-out infinite",
+      }} />
+      <div style={{
+        marginTop: 28, fontFamily: "Metamorphous, Georgia, serif", fontSize: 26, fontWeight: 700,
+        color: "#e8d5a8", letterSpacing: "0.05em", textShadow: "0 0 30px rgba(200,160,60,0.6)",
+        animation: "ascensionText 0.8s 0.6s ease both",
+      }}>{titles[tier]}</div>
+      <div style={{
+        marginTop: 10, fontSize: 14, color: "rgba(232,213,168,0.75)", maxWidth: 320, textAlign: "center",
+        fontFamily: "'IM Fell English', Georgia, serif", lineHeight: 1.5,
+        animation: "ascensionText 0.8s 0.9s ease both",
+      }}>{subtitles[tier]}</div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 function RenZuReader() {
   // ── Font loader — runs in user's browser, not sandbox
@@ -831,6 +884,7 @@ const chapterKeyRef = useRef(null);
   const [showTreasure, setShowTreasure] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [essenceLoading, setEssenceLoading] = useState(false);
+  const [ascensionTier, setAscensionTier] = useState(null);
   const [backendMode, setBackendMode] = useState('local'); // 'api' | 'local'
   const utteranceRef = useRef(null);
   const sentenceIndexRef = useRef(0);
@@ -847,9 +901,9 @@ const chapterKeyRef = useRef(null);
   // ── Cultivation billing / essence helpers ────────────────────────────
   const DAILY_CHAT_LIMIT = 3;
   const DAILY_AUDIO_LIMIT = 2;
-  const GU_MASTER_NARRATIONS = 20;
+  const GU_MASTER_NARRATIONS = 42;
   const GU_MASTER_CHATS = 100;
-  const GU_IMMORTAL_NARRATIONS = 50;
+  const GU_IMMORTAL_NARRATIONS = 500;
 
   function getTodayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -1045,6 +1099,11 @@ const chapterKeyRef = useRef(null);
     return false;
   }
 
+  function showAscension(tierName) {
+    setAscensionTier(tierName);
+    setTimeout(() => setAscensionTier(null), 4500);
+  }
+
   function unlockAudio(tierName) {
     setTier(tierName);
     if (tierName === "gu_master") {
@@ -1058,6 +1117,7 @@ const chapterKeyRef = useRef(null);
       setChatsRemaining(999999);
     }
     setShowTreasure(false);
+    showAscension(tierName);
     syncWithBackend(deviceId);
   }
 
@@ -2443,6 +2503,9 @@ function getOrBuildSentences() {
           onSave={saveProfile}
         />
       )}
+
+      {/* ── Realm ascension animation overlay ── */}
+      {ascensionTier && <AscensionOverlay tier={ascensionTier} />}
     </div>
   );
 }
@@ -2459,5 +2522,5 @@ function getOrBuildSentences() {
       });
     }
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0ccb427982a6f21',t:'MTc4MTY0MzIwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0d31d62fa146f48',t:'MTc4MTcxMDQyOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0ccb427982a6f21',t:'MTc4MTY0MzIwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
