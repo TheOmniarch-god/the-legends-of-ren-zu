@@ -1,0 +1,12 @@
+{
+  "name": "renzu-reader-backend",
+  "version": "1.0.0",
+  "description": "Backend API for The Legends of Ren Zu reader — cultivation billing system",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
