@@ -764,19 +764,16 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
 function AscensionOverlay({ tier }) {
   if (!tier) return null;
   const images = {
-    mortal: "assets/realm-mortal.jpg",
     gu_master: "assets/realm-gumaster.jpg",
     gu_immortal: "assets/realm-guimmortal.jpg",
     venerable: "assets/realm-venerable.jpg",
   };
   const titles = {
-    mortal: "Mortal Aperture",
     gu_master: "Gu Master",
     gu_immortal: "Gu Immortal",
     venerable: "Venerable",
   };
   const subtitles = {
-    mortal: "The journey begins in dust and struggle.",
     gu_master: "You have refined your aperture. Primeval essence flows.",
     gu_immortal: "You have ascended. The immortal aperture opens.",
     venerable: "You stand at the peak. Fate itself bows.",
@@ -784,12 +781,11 @@ function AscensionOverlay({ tier }) {
 
   // Per-tier intensity — colour, particle count, and whether the screen shakes on burst.
   const FX = {
-    mortal:      { accent: "150,140,120", glow: "150,140,120", particles: 7,  shake: false },
     gu_master:   { accent: "90,210,150",  glow: "70,200,140",  particles: 13, shake: false },
     gu_immortal: { accent: "255,210,90",  glow: "255,170,40",  particles: 20, shake: false },
     venerable:   { accent: "255,110,70",  glow: "255,190,60",  particles: 30, shake: true  },
   };
-  const fx = FX[tier] || FX.mortal;
+  const fx = FX[tier] || FX.gu_master;
 
   const particles = Array.from({ length: fx.particles }, (_, i) => {
     const angle = (360 / fx.particles) * i + (Math.random() * 16 - 8);
