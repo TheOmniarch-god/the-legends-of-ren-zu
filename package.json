@@ -2,6 +2,7 @@
   "name": "renzu-reader-backend",
   "version": "1.0.0",
   "description": "Backend API for The Legends of Ren Zu reader — cultivation billing system",
+  "type": "module",
   "scripts": {
     "deploy": "vercel --prod"
   },
