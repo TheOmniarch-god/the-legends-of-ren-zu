@@ -52,6 +52,22 @@ async function getRawBody(req) {
   return Buffer.concat(chunks);
 }
 
+// Fetch full transaction from Flutterwave API to get customer email
+async function getTransactionEmail(id) {
+  try {
+    const res = await fetch(`https://api.flutterwave.com/v3/transactions/${id}/verify`, {
+      headers: {
+        Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+      },
+    });
+    const data = await res.json();
+    return data?.data?.customer?.email || null;
+  } catch (e) {
+    console.error("Failed to fetch transaction:", e);
+    return null;
+  }
+}
+
 async function sendCodeEmail(email, code, tier) {
   const tierName = TIER_NAMES[tier] || tier;
   const appUrl = "https://renzu.theomniarch.com.ng";
@@ -122,7 +138,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  const { status, amount, tx_ref, customer } = event.data;
+  const { status, amount, id, tx_ref, customer } = event.data;
 
   if (status !== "successful") {
     return res.status(200).json({ received: true });
@@ -138,12 +154,18 @@ export default async function handler(req, res) {
 
   const code = generateLoreCode(tier);
 
+  // Try webhook email first, fall back to fetching from API
+  let email = customer?.email || null;
+  if (!email && id) {
+    email = await getTransactionEmail(id);
+  }
+
   const { error } = await supabase.from("payment_codes").insert({
     code,
     tier,
     used: false,
     paystack_reference: tx_ref,
-    customer_email: customer?.email || null,
+    customer_email: email,
   });
 
   if (error) {
@@ -151,9 +173,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Could not save code" });
   }
 
-  if (customer?.email) {
+  if (email) {
     try {
-      await sendCodeEmail(customer.email, code, tier);
+      await sendCodeEmail(email, code, tier);
     } catch (emailErr) {
       console.error("Email send failed:", emailErr);
     }
