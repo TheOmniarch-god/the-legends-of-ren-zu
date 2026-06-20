@@ -760,7 +760,7 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
   );
 }
 
-// ─── Ascension Overlay — summoning circle → talisman flip → burst → realm reveal ──
+// ─── Ascension Overlay — void → charge pillar → burst → silhouette reveal → name card ──
 function AscensionOverlay({ tier }) {
   if (!tier) return null;
 
@@ -780,333 +780,212 @@ function AscensionOverlay({ tier }) {
     venerable:   "You stand at the peak. Fate itself bows.",
   };
 
-  const FX = {
-    gu_master:   { accent: "90,210,150",  glow: "70,200,140",  particles: 13 },
-    gu_immortal: { accent: "255,210,90",  glow: "255,170,40",  particles: 22 },
-    venerable:   { accent: "255,110,70",  glow: "255,190,60",  particles: 40 },
+  // Per-tier scale: pillar height/width, particle count, pacing, flourish glyphs, bg tone
+  const CFG = {
+    gu_master: {
+      accent: "90,210,150", glow: "70,200,140", core: "190,255,210",
+      particles: 16, pillarW: 90, pillarH: "46vh",
+      flourishGlyphs: ["✦","❀","✦"], flourishCount: 6,
+      bg: "radial-gradient(ellipse at 50% 55%, #08160e 0%, #030604 65%, #010302 100%)",
+      dur: 1, // pacing multiplier (1 = fastest, baseline)
+      portraitSize: "min(200px,52vw)",
+      cardWidth: 280,
+    },
+    gu_immortal: {
+      accent: "255,210,90", glow: "255,170,40", core: "255,245,210",
+      particles: 26, pillarW: 130, pillarH: "58vh",
+      flourishGlyphs: ["☽","✦","⊕","⋆","◈","⟁"], flourishCount: 10,
+      bg: "radial-gradient(ellipse at 50% 50%, #1a1200 0%, #07060a 60%, #030206 100%)",
+      dur: 1.25,
+      portraitSize: "min(240px,58vw)",
+      cardWidth: 320,
+    },
+    venerable: {
+      accent: "255,110,70", glow: "255,190,60", core: "255,235,190",
+      particles: 46, pillarW: 220, pillarH: "100vh",
+      flourishGlyphs: ["✦","⟁","◈","⊗","✧","⊕","☽","⋆"], flourishCount: 16,
+      bg: "radial-gradient(ellipse at 50% 45%, #1c0a00 0%, #0a0402 55%, #020100 100%)",
+      dur: 1.55,
+      portraitSize: "min(300px,72vw)",
+      cardWidth: 380,
+    },
   };
-  const fx = FX[tier] || FX.gu_master;
+  const cfg = CFG[tier] || CFG.gu_master;
+  const d = cfg.dur;
 
-  const particles = Array.from({ length: fx.particles }, (_, i) => {
-    const angle = (360 / fx.particles) * i + (Math.random() * 20 - 10);
-    const dist  = 90 + Math.random() * 100;
+  // Outward-scatter particles (burst beat)
+  const burstParticles = Array.from({ length: cfg.particles }, (_, i) => {
+    const angle = (360 / cfg.particles) * i + (Math.random() * 16 - 8);
+    const dist  = 110 + Math.random() * 140 * (tier === "venerable" ? 1.6 : tier === "gu_immortal" ? 1.25 : 1);
     const size  = 2.5 + Math.random() * 4.5;
-    const delay = 0.5 + Math.random() * 0.3;
+    const delay = 0.05 + Math.random() * 0.15;
     const rad   = (angle * Math.PI) / 180;
-    return { key: i, ex: Math.cos(rad) * dist, ey: Math.sin(rad) * dist, size, delay };
+    return { key: "b" + i, ex: Math.cos(rad) * dist, ey: Math.sin(rad) * dist, size, delay };
   });
 
-  // ── GU MASTER — ink talisman rises from below, unseals, portrait blooms ──
-  if (tier === "gu_master") {
-    return (
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 10002,
-        background: "rgba(4,10,6,0.95)",
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        animation: "gmFadeIn 0.6s ease both",
-      }}>
-        <style>{`
-          @keyframes gmFadeIn    { from { opacity:0; } to { opacity:1; } }
-          @keyframes gmRiseUp    { 0% { opacity:0; transform:translateY(60px) scale(0.85); } 100% { opacity:1; transform:translateY(0) scale(1); } }
-          @keyframes gmSeal      { 0%,50% { opacity:0; transform:scale(0.5) rotate(-15deg); } 100% { opacity:1; transform:scale(1) rotate(0deg); } }
-          @keyframes gmUnseal    { 0% { opacity:1; transform:scale(1); } 60% { opacity:0.6; transform:scale(1.08) rotate(4deg); } 100% { opacity:0; transform:scale(1.3) rotate(8deg); } }
-          @keyframes gmPortrait  { 0% { opacity:0; transform:scale(0.75) translateY(10px); } 60% { opacity:1; transform:scale(1.04); } 100% { opacity:1; transform:scale(1); } }
-          @keyframes gmRing      { 0% { transform:scale(0.7); opacity:0.7; } 100% { transform:scale(1.8); opacity:0; } }
-          @keyframes gmPulse     { 0%,100% { filter:drop-shadow(0 0 14px rgba(${fx.glow},0.5)); } 50% { filter:drop-shadow(0 0 40px rgba(${fx.glow},0.85)); } }
-          @keyframes gmText      { 0% { opacity:0; transform:translateY(14px); } 100% { opacity:1; transform:translateY(0); } }
-          @keyframes gmParticle  { 0% { opacity:0; transform:translate(0,0); } 15% { opacity:1; } 100% { opacity:0; transform:var(--pe); } }
-          @keyframes gmInkDrip   { 0% { transform:scaleY(0); opacity:0.8; transform-origin:top; } 100% { transform:scaleY(1); opacity:0; transform-origin:top; } }
-        `}</style>
+  // Ambient drifting particles (void beat, before charge)
+  const voidParticles = Array.from({ length: Math.round(cfg.particles * 0.6) }, (_, i) => {
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    const size = 1.5 + Math.random() * 2.5;
+    const delay = Math.random() * 0.6;
+    const drift = (Math.random() * 30 - 15);
+    return { key: "v" + i, x, y, size, delay, drift };
+  });
 
-        {/* Talisman card rises first */}
-        <div style={{
-          position: "relative", width: 110, height: 155, borderRadius: 6,
-          background: "linear-gradient(170deg,#1a1a0e,#0d0d06)",
-          border: `1px solid rgba(${fx.accent},0.6)`,
-          boxShadow: `0 0 28px rgba(${fx.glow},0.4), inset 0 0 20px rgba(0,0,0,0.6)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          animation: "gmRiseUp 0.55s 0.1s cubic-bezier(.2,.8,.3,1) both",
-          marginBottom: 0, zIndex: 2,
-        }}>
-          {/* Ink drip lines for seal effect */}
-          {[30,55,75].map((x,i) => (
-            <div key={i} style={{
-              position:"absolute", top:0, left:`${x}%`, width:1, height:`${40+i*15}%`,
-              background:`rgba(${fx.accent},0.3)`,
-              animation:`gmInkDrip 0.4s ${0.5+i*0.08}s ease both`,
-            }}/>
-          ))}
-          <span style={{
-            fontSize: 38, color: `rgba(${fx.accent},1)`,
-            textShadow: `0 0 16px rgba(${fx.glow},0.9)`,
-            animation: "gmSeal 0.3s 0.6s ease both, gmUnseal 0.4s 1.1s ease forwards",
-            display: "inline-block",
-          }}>✦</span>
-        </div>
+  // Flourish glyphs orbiting the reveal (element-flair beat)
+  const flourishes = Array.from({ length: cfg.flourishCount }, (_, i) => {
+    const glyph = cfg.flourishGlyphs[i % cfg.flourishGlyphs.length];
+    const orbitR = (tier === "venerable" ? 170 : tier === "gu_immortal" ? 130 : 100) + (i % 3) * 14;
+    const startDeg = (360 / cfg.flourishCount) * i;
+    const speed = 6 + (i % 4) * 1.1;
+    return { key: "f" + i, glyph, orbitR, startDeg, speed, delay: 1.0 * d + i * 0.05 };
+  });
 
-        {/* Burst flash at unseal moment */}
-        <div style={{
-          position:"absolute", width:180, height:180, borderRadius:"50%",
-          background:`radial-gradient(circle, rgba(${fx.glow},0.85) 0%, transparent 65%)`,
-          animation:"gmRing 0.5s 1.1s ease-out both", pointerEvents:"none",
-        }}/>
-
-        {/* Particles */}
-        {particles.map(p => (
-          <div key={p.key} style={{
-            position:"absolute", top:"50%", left:"50%",
-            width:p.size, height:p.size, borderRadius:"50%",
-            background:`rgba(${fx.glow},0.95)`,
-            boxShadow:`0 0 5px rgba(${fx.glow},0.7)`,
-            "--pe":`translate(${p.ex}px,${p.ey}px)`,
-            animation:`gmParticle 0.9s ${p.delay}s cubic-bezier(.15,.6,.3,1) both`,
-            pointerEvents:"none",
-          }}/>
-        ))}
-
-        {/* Portrait blooms where talisman was */}
-        <div style={{
-          position:"absolute", width:"min(220px,55vw)", height:"min(220px,55vw)",
-          borderRadius:"50%", overflow:"hidden",
-          border:`3px solid rgba(${fx.accent},0.7)`,
-          boxShadow:`0 0 0 6px rgba(${fx.glow},0.12)`,
-          animation:"gmPortrait 0.65s 1.2s cubic-bezier(.2,.8,.3,1) both, gmPulse 2s 1.85s ease-in-out infinite",
-        }}>
-          <img src={images[tier]} alt={titles[tier]} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-        </div>
-
-        {/* Ambient ring */}
-        <div style={{
-          position:"absolute", width:"min(300px,72vw)", height:"min(300px,72vw)", borderRadius:"50%",
-          border:`1px solid rgba(${fx.accent},0.25)`,
-          animation:"gmRing 2s 1.5s ease-out infinite", pointerEvents:"none",
-        }}/>
-
-        <div style={{
-          marginTop:"calc(min(220px,55vw) / 2 + 32px)", position:"absolute", bottom:80,
-          fontFamily:"Metamorphous,Georgia,serif", fontSize:26, fontWeight:700,
-          color:"#ffe8a0", letterSpacing:"0.07em", opacity:0,
-          textShadow:`0 0 18px rgba(${fx.glow},0.9)`,
-          animation:"gmText 0.55s 1.8s ease both", textAlign:"center",
-        }}>{titles[tier]}</div>
-        <div style={{
-          position:"absolute", bottom:44,
-          fontSize:13, color:"rgba(255,235,180,0.8)", maxWidth:300, textAlign:"center",
-          fontFamily:"'IM Fell English',Georgia,serif", lineHeight:1.55, opacity:0,
-          animation:"gmText 0.55s 2.05s ease both", padding:"0 24px",
-        }}>{subtitles[tier]}</div>
-      </div>
-    );
-  }
-
-  // ── GU IMMORTAL — portrait descends from heaven in golden light, runes orbit ──
-  if (tier === "gu_immortal") {
-    const runeCount = 8;
-    return (
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 10002,
-        background: "radial-gradient(ellipse at 50% 30%, #1a1200 0%, #07060a 60%, #030206 100%)",
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        animation: "giFadeIn 0.7s ease both",
-      }}>
-        <style>{`
-          @keyframes giFadeIn     { from { opacity:0; } to { opacity:1; } }
-          @keyframes giDescend    { 0% { opacity:0; transform:translateY(-80px) scale(0.7); filter:brightness(3); } 50% { opacity:1; filter:brightness(1.4); } 100% { opacity:1; transform:translateY(0) scale(1); filter:brightness(1); } }
-          @keyframes giGlow       { 0%,100% { filter:drop-shadow(0 0 20px rgba(${fx.glow},0.55)); } 50% { filter:drop-shadow(0 0 60px rgba(${fx.glow},0.95)); } }
-          @keyframes giOrbit      { from { transform:rotate(0deg) translateX(var(--orb-r)) rotate(0deg); } to { transform:rotate(360deg) translateX(var(--orb-r)) rotate(-360deg); } }
-          @keyframes giRuneIn     { 0% { opacity:0; transform:scale(0.3); } 100% { opacity:0.75; transform:scale(1); } }
-          @keyframes giBeam       { 0% { opacity:0; transform:scaleY(0); transform-origin:top; } 40% { opacity:0.7; } 100% { opacity:0; transform:scaleY(1); transform-origin:top; } }
-          @keyframes giRing       { 0% { transform:scale(0.6); opacity:0.8; } 100% { transform:scale(2); opacity:0; } }
-          @keyframes giText       { 0% { opacity:0; transform:translateY(16px); } 100% { opacity:1; transform:translateY(0); } }
-          @keyframes giParticle   { 0% { opacity:0; transform:translate(0,0); } 15% { opacity:1; } 100% { opacity:0; transform:var(--pe); } }
-        `}</style>
-
-        {/* Heaven beam from above */}
-        <div style={{
-          position:"absolute", top:0, left:"50%", transform:"translateX(-50%)",
-          width:3, height:"45%",
-          background:`linear-gradient(to bottom, rgba(${fx.glow},0.9), transparent)`,
-          animation:"giBeam 1.2s 0.1s ease both", pointerEvents:"none",
-        }}/>
-
-        {/* Portrait descends */}
-        <div style={{
-          position:"relative", width:"min(240px,58vw)", height:"min(240px,58vw)",
-          borderRadius:"50%", overflow:"hidden",
-          border:`3px solid rgba(${fx.accent},0.8)`,
-          boxShadow:`0 0 0 8px rgba(${fx.glow},0.1), 0 0 60px rgba(${fx.glow},0.35)`,
-          animation:"giDescend 1.0s 0.15s cubic-bezier(.2,.8,.3,1) both, giGlow 2.2s 1.35s ease-in-out infinite",
-          zIndex:2,
-        }}>
-          <img src={images[tier]} alt={titles[tier]} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-
-          {/* Orbiting rune glyphs */}
-          {Array.from({length: runeCount}).map((_,i) => {
-            const glyphs = ["☽","✦","⊕","⋆","◈","⟁","⊗","✧"];
-            const orbitR = 140;
-            const startDeg = (360/runeCount)*i;
-            return (
-              <div key={i} style={{
-                position:"absolute", top:"50%", left:"50%",
-                marginTop:-10, marginLeft:-10,
-                width:20, height:20,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:13, color:`rgba(${fx.accent},0.85)`,
-                "--orb-r":`${orbitR}px`,
-                animation:`giRuneIn 0.3s ${0.9+i*0.06}s ease both, giOrbit ${5+i*0.4}s ${0.9+i*0.06}s linear infinite`,
-                transformOrigin:"0 0",
-                transform:`rotate(${startDeg}deg) translateX(${orbitR}px) rotate(-${startDeg}deg)`,
-              }}>{glyphs[i]}</div>
-            );
-          })}
-        </div>
-
-        {/* Expanding rings */}
-        {[0,0.3].map((d,i) => (
-          <div key={i} style={{
-            position:"absolute", width:"min(260px,62vw)", height:"min(260px,62vw)", borderRadius:"50%",
-            border:`1px solid rgba(${fx.accent},0.3)`,
-            animation:`giRing ${1.6+i*0.4}s ${1.0+d}s ease-out infinite`, pointerEvents:"none",
-          }}/>
-        ))}
-
-        {/* Particles */}
-        {particles.map(p => (
-          <div key={p.key} style={{
-            position:"absolute", top:"50%", left:"50%",
-            width:p.size, height:p.size, borderRadius:"50%",
-            background:`rgba(${fx.glow},0.9)`,
-            "--pe":`translate(${p.ex}px,${p.ey}px)`,
-            animation:`giParticle 1.0s ${p.delay+0.8}s cubic-bezier(.15,.6,.3,1) both`,
-            pointerEvents:"none",
-          }}/>
-        ))}
-
-        <div style={{
-          position:"absolute", bottom:80,
-          fontFamily:"Metamorphous,Georgia,serif", fontSize:28, fontWeight:700,
-          color:"#ffe8a0", letterSpacing:"0.07em", opacity:0,
-          textShadow:`0 0 22px rgba(${fx.glow},1), 0 0 50px rgba(${fx.accent},0.5)`,
-          animation:"giText 0.6s 1.6s ease both", textAlign:"center",
-        }}>{titles[tier]}</div>
-        <div style={{
-          position:"absolute", bottom:44,
-          fontSize:13, color:"rgba(255,235,180,0.8)", maxWidth:300, textAlign:"center",
-          fontFamily:"'IM Fell English',Georgia,serif", lineHeight:1.55, opacity:0,
-          animation:"giText 0.6s 1.9s ease both", padding:"0 24px",
-        }}>{subtitles[tier]}</div>
-      </div>
-    );
-  }
-
-  // ── VENERABLE — full-screen portrait takeover, world trembles, golden inferno ──
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 10002,
+      background: cfg.bg,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       overflow: "hidden",
-      animation: "vFadeIn 0.4s ease both",
+      animation: `aoFadeIn ${0.4 * d}s ease both`,
     }}>
       <style>{`
-        @keyframes vFadeIn      { from { opacity:0; } to { opacity:1; } }
-        @keyframes vBgBurn      { 0% { opacity:0; transform:scale(1.08); filter:brightness(0.3) saturate(0.5); } 40% { opacity:1; filter:brightness(0.55) saturate(1.2); } 100% { opacity:1; transform:scale(1); filter:brightness(0.42) saturate(1.4); } }
-        @keyframes vShake       { 0%,100% { transform:translate(0,0) scale(1); } 10% { transform:translate(-9px,5px) scale(1.01); } 25% { transform:translate(8px,-6px) scale(1.01); } 40% { transform:translate(-6px,4px); } 60% { transform:translate(5px,-3px); } 80% { transform:translate(-3px,2px); } }
-        @keyframes vFireRise    { 0% { opacity:0; transform:scaleY(0.1) translateY(60px); } 60% { opacity:1; } 100% { opacity:0.7; transform:scaleY(1) translateY(0); } }
-        @keyframes vGoldBeam    { 0% { opacity:0; transform:scaleX(0); } 50% { opacity:1; } 100% { opacity:0; transform:scaleX(1); } }
-        @keyframes vPortraitIn  { 0% { opacity:0; transform:scale(1.25); filter:brightness(4) blur(8px); } 50% { filter:brightness(1.6) blur(2px); } 100% { opacity:1; transform:scale(1); filter:brightness(1) blur(0); } }
-        @keyframes vCrownDrop   { 0% { opacity:0; transform:translateY(-40px) scale(0.6) rotate(-10deg); } 70% { transform:translateY(4px) scale(1.06) rotate(1deg); } 100% { opacity:1; transform:translateY(0) scale(1) rotate(0deg); } }
-        @keyframes vTextReveal  { 0% { opacity:0; letter-spacing:0.5em; } 100% { opacity:1; letter-spacing:0.12em; } }
-        @keyframes vSubReveal   { 0% { opacity:0; transform:translateY(10px); } 100% { opacity:1; transform:translateY(0); } }
-        @keyframes vParticle    { 0% { opacity:0; transform:translate(0,0) scale(1.2); } 10% { opacity:1; } 100% { opacity:0; transform:var(--pe) scale(0.1); } }
-        @keyframes vPulse       { 0%,100% { box-shadow:inset 0 0 120px rgba(${fx.glow},0.3), 0 0 80px rgba(${fx.glow},0.2); } 50% { box-shadow:inset 0 0 200px rgba(${fx.glow},0.55), 0 0 140px rgba(${fx.glow},0.45); } }
-        @keyframes vFireFlicker { 0%,100% { opacity:0.7; transform:scaleX(1); } 25% { opacity:0.9; transform:scaleX(1.03); } 75% { opacity:0.6; transform:scaleX(0.97); } }
+        @keyframes aoFadeIn      { from { opacity:0; } to { opacity:1; } }
+        @keyframes aoVoidDrift   { 0% { opacity:0; transform:translateY(0); } 20% { opacity:0.55; } 100% { opacity:0; transform:translateY(var(--vd)); } }
+        @keyframes aoGroundRing  { 0% { transform:scale(0.2); opacity:0; } 35% { opacity:0.9; } 100% { transform:scale(1.4); opacity:0; } }
+        @keyframes aoPillarRise  { 0% { opacity:0; transform:scaleY(0.05) scaleX(0.6); } 55% { opacity:1; } 100% { opacity:1; transform:scaleY(1) scaleX(1); } }
+        @keyframes aoPillarFade  { 0% { opacity:1; } 100% { opacity:0; } }
+        @keyframes aoFlash       { 0%,100% { opacity:0; } 50% { opacity:1; } }
+        @keyframes aoBurstRing   { 0% { transform:scale(0.3); opacity:0.95; } 100% { transform:scale(2.2); opacity:0; } }
+        @keyframes aoBurstPart   { 0% { opacity:0; transform:translate(0,0) scale(1.3); } 12% { opacity:1; } 100% { opacity:0; transform:var(--pe) scale(0.2); } }
+        @keyframes aoReveal      { 0% { opacity:0; transform:scale(1.15); filter:brightness(3.2) blur(6px); } 55% { filter:brightness(1.5) blur(1.5px); } 100% { opacity:1; transform:scale(1); filter:brightness(1) blur(0); } }
+        @keyframes aoRimPulse    { 0%,100% { filter:drop-shadow(0 0 16px rgba(${cfg.glow},0.5)); } 50% { filter:drop-shadow(0 0 42px rgba(${cfg.glow},0.9)); } }
+        @keyframes aoFlourishIn  { 0% { opacity:0; transform:scale(0.2); } 100% { opacity:0.85; transform:scale(1); } }
+        @keyframes aoOrbit       { from { transform:rotate(0deg) translateX(var(--orb-r)) rotate(0deg); } to { transform:rotate(360deg) translateX(var(--orb-r)) rotate(-360deg); } }
+        @keyframes aoCardUp      { 0% { opacity:0; transform:translateY(70px); } 100% { opacity:1; transform:translateY(0); } }
+        @keyframes aoTitleIn     { 0% { opacity:0; letter-spacing:0.4em; } 100% { opacity:1; letter-spacing:0.06em; } }
+        @keyframes aoSubIn       { 0% { opacity:0; transform:translateY(8px); } 100% { opacity:1; transform:translateY(0); } }
+        @keyframes aoShake       { 0%,100% { transform:translate(0,0); } 20% { transform:translate(-6px,4px); } 40% { transform:translate(5px,-4px); } 60% { transform:translate(-4px,3px); } 80% { transform:translate(3px,-2px); } }
       `}</style>
 
-      {/* Full-screen portrait as background */}
-      <div style={{
-        position:"absolute", inset:0,
-        animation:"vBgBurn 1.2s 0s cubic-bezier(.2,.8,.3,1) both",
-      }}>
-        <img src={images[tier]} alt="" style={{
-          width:"100%", height:"100%", objectFit:"cover", objectPosition:"center top",
-        }}/>
-      </div>
-
-      {/* Dark overlay with burning edges */}
-      <div style={{
-        position:"absolute", inset:0,
-        background:"radial-gradient(ellipse at 50% 40%, transparent 20%, rgba(0,0,0,0.55) 65%, rgba(0,0,0,0.88) 100%)",
-        animation:"vPulse 2.5s 1.5s ease-in-out infinite",
-      }}/>
-
-      {/* Screen shake wrapper */}
-      <div style={{
-        position:"absolute", inset:0,
-        animation:"vShake 0.55s 0.9s ease both",
-        pointerEvents:"none",
-      }}>
-        {/* Fire columns rising from bottom */}
-        {[10,25,40,55,70,85].map((x,i) => (
-          <div key={i} style={{
-            position:"absolute", bottom:0, left:`${x}%`,
-            width:`${6+i%3*3}%`, height:`${25+Math.random()*20}%`,
-            background:`linear-gradient(to top, rgba(${fx.glow},0.9), rgba(255,80,0,0.5), transparent)`,
-            borderRadius:"50% 50% 0 0",
-            animation:`vFireRise 0.8s ${0.7+i*0.07}s ease both, vFireFlicker ${1.2+i*0.15}s ${1.5+i*0.07}s ease-in-out infinite`,
-            filter:"blur(4px)",
-          }}/>
-        ))}
-
-        {/* Horizontal gold beam at the moment of impact */}
-        <div style={{
-          position:"absolute", top:"50%", left:0, right:0, height:3,
-          background:`linear-gradient(to right, transparent, rgba(${fx.glow},0.9), transparent)`,
-          animation:"vGoldBeam 0.6s 0.95s ease both",
-        }}/>
-      </div>
-
-      {/* Particles */}
-      {particles.map(p => (
+      {/* ── BEAT 1: VOID — ambient drifting motes before anything happens ── */}
+      {voidParticles.map(p => (
         <div key={p.key} style={{
-          position:"absolute", top:"50%", left:"50%",
-          width:p.size+1, height:p.size+1, borderRadius:"50%",
-          background:`rgba(${fx.glow},1)`,
-          boxShadow:`0 0 8px rgba(${fx.glow},0.8)`,
-          "--pe":`translate(${p.ex*1.4}px,${p.ey*1.4}px)`,
-          animation:`vParticle 1.1s ${p.delay+0.8}s cubic-bezier(.1,.7,.3,1) both`,
-          pointerEvents:"none",
-        }}/>
+          position: "absolute", left: `${p.x}%`, top: `${p.y}%`,
+          width: p.size, height: p.size, borderRadius: "50%",
+          background: `rgba(${cfg.accent},0.5)`,
+          "--vd": `${p.drift}px`,
+          animation: `aoVoidDrift ${1.6 * d}s ${p.delay}s ease-out both`,
+          pointerEvents: "none",
+        }} />
       ))}
 
-      {/* Crown drops in */}
+      {/* ── BEAT 2: CHARGE — ground ring + light pillar builds at center ── */}
       <div style={{
-        position:"relative", zIndex:3,
-        fontSize:64, lineHeight:1,
-        filter:`drop-shadow(0 0 30px rgba(${fx.glow},1))`,
-        animation:"vCrownDrop 0.7s 1.1s cubic-bezier(.2,.8,.3,1) both",
-        opacity:0,
-      }}>👑</div>
+        position: "absolute", width: cfg.pillarW * 2.4, height: cfg.pillarW * 0.5,
+        borderRadius: "50%",
+        background: `radial-gradient(ellipse, rgba(${cfg.glow},0.55) 0%, transparent 70%)`,
+        animation: `aoGroundRing ${0.6 * d}s ${0.5 * d}s ease-out both`,
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", bottom: "50%", left: "50%",
+        width: cfg.pillarW, height: cfg.pillarH, marginLeft: -cfg.pillarW / 2,
+        background: `linear-gradient(to top, rgba(${cfg.glow},0.95), rgba(${cfg.accent},0.5), transparent)`,
+        transformOrigin: "bottom",
+        animation: `aoPillarRise ${0.55 * d}s ${0.55 * d}s cubic-bezier(.2,.8,.3,1) both, aoPillarFade ${0.35 * d}s ${1.1 * d}s ease both`,
+        filter: "blur(2px)",
+        pointerEvents: "none",
+      }} />
 
-      {/* Title — letters spread outward */}
+      {/* ── BEAT 3: BURST — screen flash + ring + scattering particles ── */}
       <div style={{
-        position:"relative", zIndex:3,
-        fontFamily:"Metamorphous,Georgia,serif", fontSize:"clamp(36px,8vw,56px)", fontWeight:700,
-        color:"#ffe8a0", opacity:0,
-        textShadow:`0 0 30px rgba(${fx.glow},1), 0 0 80px rgba(${fx.accent},0.7), 0 2px 0 rgba(0,0,0,0.8)`,
-        animation:"vTextReveal 0.8s 1.55s cubic-bezier(.2,.8,.3,1) both",
-        marginTop:12,
-      }}>{titles[tier]}</div>
+        position: "absolute", inset: 0,
+        background: `radial-gradient(circle at 50% 50%, rgba(${cfg.core},0.9) 0%, transparent 55%)`,
+        animation: `aoFlash ${0.3 * d}s ${1.05 * d}s ease both`,
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", width: cfg.pillarW * 1.6, height: cfg.pillarW * 1.6, borderRadius: "50%",
+        border: `2px solid rgba(${cfg.glow},0.8)`,
+        animation: `aoBurstRing ${0.6 * d}s ${1.1 * d}s ease-out both`,
+        pointerEvents: "none",
+      }} />
+      {burstParticles.map(p => (
+        <div key={p.key} style={{
+          position: "absolute", top: "50%", left: "50%",
+          width: p.size, height: p.size, borderRadius: "50%",
+          background: `rgba(${cfg.glow},1)`,
+          boxShadow: `0 0 6px rgba(${cfg.glow},0.8)`,
+          "--pe": `translate(${p.ex}px,${p.ey}px)`,
+          animation: `aoBurstPart ${0.9 * d}s ${(1.1 + p.delay) * d}s cubic-bezier(.15,.6,.3,1) both`,
+          pointerEvents: "none",
+        }} />
+      ))}
 
-      {/* Subtitle */}
+      {/* Optional screen shake for Venerable only, layered over the reveal beat */}
       <div style={{
-        position:"relative", zIndex:3,
-        marginTop:14, fontSize:"clamp(13px,3vw,16px)",
-        color:"rgba(255,235,180,0.9)", maxWidth:360, textAlign:"center",
-        fontFamily:"'IM Fell English',Georgia,serif", lineHeight:1.6, opacity:0,
-        textShadow:"0 1px 4px rgba(0,0,0,0.9)",
-        animation:"vSubReveal 0.6s 2.1s ease both",
-        padding:"0 28px",
-      }}>{subtitles[tier]}</div>
+        position: "relative", zIndex: 2,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        animation: tier === "venerable" ? `aoShake ${0.5 * d}s ${1.3 * d}s ease both` : "none",
+      }}>
+        {/* ── BEAT 4: REVEAL — portrait fades up through the dissipating light, rim-lit ── */}
+        <div style={{
+          position: "relative",
+          width: cfg.portraitSize, height: cfg.portraitSize,
+          borderRadius: "50%", overflow: "hidden",
+          border: `3px solid rgba(${cfg.accent},0.85)`,
+          boxShadow: `0 0 0 8px rgba(${cfg.glow},0.12), 0 0 50px rgba(${cfg.glow},0.4)`,
+          animation: `aoReveal ${0.7 * d}s ${1.25 * d}s cubic-bezier(.2,.8,.3,1) both, aoRimPulse ${2.2}s ${2.0 * d}s ease-in-out infinite`,
+        }}>
+          <img src={images[tier]} alt={titles[tier]} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        </div>
+
+        {/* ── BEAT 5: FLOURISH — element-flavored glyphs orbit the reveal ── */}
+        {flourishes.map(f => (
+          <div key={f.key} style={{
+            position: "absolute", top: "50%", left: "50%",
+            marginTop: -10, marginLeft: -10, width: 20, height: 20,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: tier === "venerable" ? 16 : 13,
+            color: `rgba(${cfg.accent},0.9)`,
+            textShadow: `0 0 10px rgba(${cfg.glow},0.8)`,
+            "--orb-r": `${f.orbitR}px`,
+            transformOrigin: "0 0",
+            transform: `rotate(${f.startDeg}deg) translateX(${f.orbitR}px) rotate(-${f.startDeg}deg)`,
+            animation: `aoFlourishIn 0.3s ${f.delay}s ease both, aoOrbit ${f.speed}s ${f.delay}s linear infinite`,
+            pointerEvents: "none",
+          }}>{f.glyph}</div>
+        ))}
+
+        {/* ── BEAT 6: NAME CARD — slides up from below, one line, horizontal ── */}
+        <div style={{
+          marginTop: 28,
+          display: "flex", flexDirection: "column", alignItems: "center",
+          width: cfg.cardWidth, maxWidth: "82vw",
+          opacity: 0,
+          animation: `aoCardUp ${0.5 * d}s ${2.05 * d}s cubic-bezier(.2,.8,.3,1) both`,
+        }}>
+          <div style={{
+            width: "100%", textAlign: "center",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            fontFamily: "Metamorphous,Georgia,serif",
+            fontSize: tier === "venerable" ? "clamp(28px,7vw,44px)" : tier === "gu_immortal" ? "clamp(24px,6vw,34px)" : "clamp(20px,5vw,28px)",
+            fontWeight: 700, color: `rgb(${cfg.core})`,
+            textShadow: `0 0 20px rgba(${cfg.glow},0.9), 0 0 50px rgba(${cfg.accent},0.5)`,
+            opacity: 0,
+            animation: `aoTitleIn ${0.5 * d}s ${2.2 * d}s ease both`,
+          }}>{titles[tier]}</div>
+          <div style={{
+            marginTop: 10, fontSize: 13, textAlign: "center",
+            color: "rgba(255,245,225,0.85)",
+            fontFamily: "'IM Fell English',Georgia,serif", lineHeight: 1.55,
+            opacity: 0, padding: "0 16px",
+            animation: `aoSubIn 0.5s ${2.4 * d}s ease both`,
+          }}>{subtitles[tier]}</div>
+        </div>
+      </div>
     </div>
   );
 }
