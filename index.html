@@ -857,18 +857,80 @@ function AscensionOverlay({ tier }) {
         @keyframes aoSidePillar  { 0% { opacity:0; transform:scaleY(0.05); } 60% { opacity:0.85; } 100% { opacity:0; transform:scaleY(1); } }
         @keyframes aoMeteor      { 0% { opacity:0; transform:translate(0,0) rotate(35deg); } 12% { opacity:1; } 100% { opacity:0; transform:translate(var(--mx),var(--my)) rotate(35deg); } }
         @keyframes aoFlicker     { 0% { opacity:0; } 14% { opacity:0.95; } 30% { opacity:0.1; } 48% { opacity:0.8; } 62% { opacity:0; } 100% { opacity:0; } }
-        @keyframes aoWarpShimmer { 0%,100% { transform:scaleY(1) scaleX(1); backdrop-filter:blur(0.5px); -webkit-backdrop-filter:blur(0.5px); } 50% { transform:scaleY(1.035) scaleX(0.975); backdrop-filter:blur(1.8px); -webkit-backdrop-filter:blur(1.8px); } }
-        @keyframes aoWarpPulse   { 0% { transform:scale(0.2); opacity:0; backdrop-filter:blur(0px); -webkit-backdrop-filter:blur(0px); } 35% { opacity:0.85; backdrop-filter:blur(8px) saturate(1.3); -webkit-backdrop-filter:blur(8px) saturate(1.3); } 100% { transform:scale(3.8); opacity:0; backdrop-filter:blur(0px); -webkit-backdrop-filter:blur(0px); } }
+        @keyframes aoTearOpen    { 0% { transform:scaleX(0.03); opacity:0; } 60% { opacity:1; } 100% { transform:scaleX(1); opacity:1; } }
+        @keyframes aoTearClose   { 0% { transform:scaleX(1); opacity:1; } 100% { transform:scaleX(0.02); opacity:0; } }
+        @keyframes aoEntityRise  { 0% { opacity:0; transform:translateY(0) scale(0.55); } 12% { opacity:0.9; } 55% { opacity:0.95; transform:translateY(-46px) scale(1); } 82% { opacity:0.45; } 100% { opacity:0; transform:translateY(-110px) scale(1.05); } }
       `}</style>
 
+      {/* SPACE TEAR — Venerable only: a jagged rift tears open mid-screen, glowing crimson at the edges */}
+      {tier === "venerable" && (() => {
+        const steps = 14;
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const y = (i / steps) * 100;
+          const x = 50 + ((i % 2 === 0) ? -1 : 1) * (4 + Math.random() * 6);
+          pts.push(`${x}% ${y}%`);
+        }
+        for (let i = steps; i >= 0; i--) {
+          const y = (i / steps) * 100;
+          const x = 50 + ((i % 2 === 0) ? 1 : -1) * (2.5 + Math.random() * 4.5);
+          pts.push(`${x}% ${y}%`);
+        }
+        const clip = `polygon(${pts.join(",")})`;
+        return (
+          <div style={{
+            position: "absolute", left: "50%", top: "5vh",
+            width: "44vw", height: "88vh", marginLeft: "-22vw",
+            clipPath: clip, WebkitClipPath: clip,
+            background: "linear-gradient(180deg, rgba(10,0,0,0.25), #030000 16%, #000 50%, #030000 84%, rgba(10,0,0,0.25))",
+            filter: `drop-shadow(0 0 16px rgba(${cfg.glow},0.95)) drop-shadow(0 0 40px rgba(${cfg.accent},0.55))`,
+            transformOrigin: "center",
+            animation: `aoTearOpen 0.55s ${t.chargeAt}s cubic-bezier(.25,1.35,.35,1) both, aoTearClose 0.45s ${t.flashAt}s ease both`,
+            zIndex: 2,
+            pointerEvents: "none",
+          }} />
+        );
+      })()}
+
+      {/* BLACK ENTITIES — Venerable only: shadow figures climbing out of the tear, dissolving before the reveal */}
+      {tier === "venerable" && [-9, 0, 10].map((xOff, i) => {
+        const w = 24 + i * 5;
+        const delay = t.chargeAt + 0.32 + i * 0.18;
+        const dur = 0.85 + i * 0.06;
+        return (
+          <div key={"ent"+i} style={{
+            position: "absolute", left: `calc(50% + ${xOff}%)`, bottom: "9%",
+            width: w, height: w * 2.5, marginLeft: -w / 2, zIndex: 2,
+            opacity: 0,
+            filter: `drop-shadow(0 0 9px rgba(${cfg.glow},0.55))`,
+            animation: `aoEntityRise ${dur}s ${delay}s cubic-bezier(.25,.7,.3,1) both`,
+            pointerEvents: "none",
+          }}>
+            <svg viewBox="0 0 40 100" style={{ width: "100%", height: "100%" }}>
+              <defs>
+                <linearGradient id={`entGrad${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1a0606" />
+                  <stop offset="55%" stopColor="#070202" />
+                  <stop offset="100%" stopColor="#000000" />
+                </linearGradient>
+              </defs>
+              <path d="M14,8 C10,8 7,12 7,17 C7,22 9,25 12,27 C6,40 4,62 8,86 C9,93 14,98 20,98 C26,98 31,93 32,86 C36,62 34,40 28,27 C31,25 33,22 33,17 C33,12 30,8 26,8 C24,5 16,5 14,8 Z"
+                    fill={`url(#entGrad${i})`} opacity="0.94" />
+              <path d="M9,32 C1,42 -3,52 1,62" stroke="#0a0303" strokeWidth="3.4" fill="none" strokeLinecap="round" />
+              <path d="M31,32 C39,42 43,52 39,62" stroke="#0a0303" strokeWidth="3.4" fill="none" strokeLinecap="round" />
+            </svg>
+          </div>
+        );
+      })}
+
       {/* STORM CLOUDS — big, full billowing cloud bank gathering overhead, dark base + tier-colored rim glow */}
-      {(tier === "gu_immortal" || tier === "venerable") && Array.from({ length: tier === "venerable" ? 8 : 5 }).map((_, i) => {
-        const count = tier === "venerable" ? 8 : 5;
-        // spans past both edges and overlaps neighbors so it reads as one continuous bank, not separate blobs
+      {(tier === "gu_immortal" || tier === "venerable") && Array.from({ length: tier === "venerable" ? 8 : 7 }).map((_, i) => {
+        const count = tier === "venerable" ? 8 : 7;
+        // spans past both edges and overlaps neighbors so it reads as one continuous, filled-in bank, not separate blobs
         const startX = -10 + (i * (118 / (count - 1)));
         const baseY = -6 + (i % 3) * 5;
-        const scale = tier === "venerable" ? (1.5 + Math.random() * 0.75) : (1.1 + Math.random() * 0.55);
-        const delay = t.chargeAt + i * 0.06;
+        const scale = tier === "venerable" ? (1.5 + Math.random() * 0.75) : (1.35 + Math.random() * 0.65);
+        const delay = t.chargeAt + i * 0.05;
         const rimColor = tier === "venerable" ? cfg.glow : cfg.accent;
         // each cloud is built from 7 overlapping puffs at varied size for a full, billowing silhouette
         const puffs = [
@@ -964,14 +1026,6 @@ function AscensionOverlay({ tier }) {
 
       {/* CHARGE — ground ring + rising light pillar */}
       <div style={{
-        position: "absolute", bottom: "50%", left: "50%", zIndex: 0,
-        width: cfg.pillarW * 3, height: `calc(${cfg.pillarH} * 1.05)`,
-        marginLeft: -(cfg.pillarW * 1.5),
-        transformOrigin: "bottom",
-        animation: `aoWarpShimmer ${Math.max(0.9, (t.peakAt - t.chargeAt) / 2)}s ${t.chargeAt}s ease-in-out 2 both`,
-        pointerEvents: "none",
-      }} />
-      <div style={{
         position: "absolute",
         width: cfg.pillarW * 2.4, height: cfg.pillarW * 0.5,
         borderRadius: "50%",
@@ -996,18 +1050,6 @@ function AscensionOverlay({ tier }) {
         animation: `aoWhiteFlash 0.3s ${t.flashAt}s ease both`,
         pointerEvents: "none",
       }} />
-      <div style={{
-        position: "absolute", width: cfg.pillarW * 1.4, height: cfg.pillarW * 1.4, borderRadius: "50%",
-        animation: `aoWarpPulse 0.75s ${t.burstAt}s ease-out both`,
-        pointerEvents: "none",
-      }} />
-      {tier === "venerable" && (
-        <div style={{
-          position: "absolute", width: cfg.pillarW * 1.4, height: cfg.pillarW * 1.4, borderRadius: "50%",
-          animation: `aoWarpPulse 0.85s ${t.burstAt + 0.2}s ease-out both`,
-          pointerEvents: "none",
-        }} />
-      )}
       <div style={{
         position: "absolute", width: cfg.pillarW * 1.7, height: cfg.pillarW * 1.7, borderRadius: "50%",
         border: `2px solid rgba(${cfg.glow},0.85)`,
