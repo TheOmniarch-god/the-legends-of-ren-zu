@@ -852,41 +852,68 @@ function AscensionOverlay({ tier }) {
         @keyframes aoSubIn       { 0% { opacity:0; transform:translateY(8px); } 100% { opacity:1; transform:translateY(0); } }
         @keyframes aoShake       { 0%,100% { transform:translate(0,0); } 20% { transform:translate(-7px,4px); } 40% { transform:translate(6px,-5px); } 60% { transform:translate(-4px,3px); } 80% { transform:translate(3px,-2px); } }
         @keyframes aoBigShake    { 0%,100% { transform:translate(0,0); } 14% { transform:translate(-11px,7px); } 28% { transform:translate(10px,-8px); } 42% { transform:translate(-8px,6px); } 56% { transform:translate(6px,-4px); } 70% { transform:translate(-4px,3px); } 85% { transform:translate(2px,-1px); } }
-        @keyframes aoCloudIn     { 0% { opacity:0; transform:scale(var(--sc,1)); } 100% { opacity:0.9; transform:scale(var(--sc,1)); } }
-        @keyframes aoCloudDrift  { 0%,100% { transform:scale(var(--sc,1)) translateX(0); } 50% { transform:scale(var(--sc,1)) translateX(10px); } }
+        @keyframes aoCloudIn     { 0% { opacity:0; transform:scale(calc(var(--sc,1) * 0.7)); } 100% { opacity:0.95; transform:scale(var(--sc,1)); } }
+        @keyframes aoCloudDrift  { 0%,100% { transform:scale(var(--sc,1)) translateX(0); } 50% { transform:scale(var(--sc,1)) translateX(14px); } }
         @keyframes aoSidePillar  { 0% { opacity:0; transform:scaleY(0.05); } 60% { opacity:0.85; } 100% { opacity:0; transform:scaleY(1); } }
         @keyframes aoMeteor      { 0% { opacity:0; transform:translate(0,0) rotate(35deg); } 12% { opacity:1; } 100% { opacity:0; transform:translate(var(--mx),var(--my)) rotate(35deg); } }
+        @keyframes aoFlicker     { 0% { opacity:0; } 14% { opacity:0.95; } 30% { opacity:0.1; } 48% { opacity:0.8; } 62% { opacity:0; } 100% { opacity:0; } }
+        @keyframes aoWarpShimmer { 0%,100% { transform:scaleY(1) scaleX(1); backdrop-filter:blur(0.5px); -webkit-backdrop-filter:blur(0.5px); } 50% { transform:scaleY(1.035) scaleX(0.975); backdrop-filter:blur(1.8px); -webkit-backdrop-filter:blur(1.8px); } }
+        @keyframes aoWarpPulse   { 0% { transform:scale(0.2); opacity:0; backdrop-filter:blur(0px); -webkit-backdrop-filter:blur(0px); } 35% { opacity:0.85; backdrop-filter:blur(8px) saturate(1.3); -webkit-backdrop-filter:blur(8px) saturate(1.3); } 100% { transform:scale(3.8); opacity:0; backdrop-filter:blur(0px); -webkit-backdrop-filter:blur(0px); } }
       `}</style>
 
-      {/* STORM CLOUDS — real billowy cloud shapes gathering overhead, dark base + tier-colored rim glow */}
-      {(tier === "gu_immortal" || tier === "venerable") && Array.from({ length: tier === "venerable" ? 6 : 4 }).map((_, i) => {
-        const startX = 8 + (i * (84 / ((tier === "venerable" ? 6 : 4) - 1)));
-        const baseY = 2 + (i % 2) * 5;
-        const scale = 0.8 + Math.random() * 0.5;
-        const delay = t.chargeAt + i * 0.08;
+      {/* STORM CLOUDS — big, full billowing cloud bank gathering overhead, dark base + tier-colored rim glow */}
+      {(tier === "gu_immortal" || tier === "venerable") && Array.from({ length: tier === "venerable" ? 8 : 5 }).map((_, i) => {
+        const count = tier === "venerable" ? 8 : 5;
+        // spans past both edges and overlaps neighbors so it reads as one continuous bank, not separate blobs
+        const startX = -10 + (i * (118 / (count - 1)));
+        const baseY = -6 + (i % 3) * 5;
+        const scale = tier === "venerable" ? (1.5 + Math.random() * 0.75) : (1.1 + Math.random() * 0.55);
+        const delay = t.chargeAt + i * 0.06;
         const rimColor = tier === "venerable" ? cfg.glow : cfg.accent;
-        // each cloud is built from 4 overlapping puffs to read as a real cloud silhouette, not a circle
+        // each cloud is built from 7 overlapping puffs at varied size for a full, billowing silhouette
         const puffs = [
-          { dx: -22, dy: 4,  r: 16 }, { dx: -6, dy: -6, r: 20 },
-          { dx: 12,  dy: -3, r: 18 }, { dx: 26,  dy: 5,  r: 14 },
+          { dx: -46, dy: 12, r: 27 }, { dx: -24, dy: -10, r: 35 },
+          { dx: 0,   dy: -17, r: 39 }, { dx: 24,  dy: -9,  r: 34 },
+          { dx: 47,  dy: 10, r: 26 }, { dx: -12, dy: 16, r: 23 },
+          { dx: 15,  dy: 17, r: 21 },
         ];
         return (
           <div key={"cl"+i} style={{
-            position: "absolute", left: `${startX}%`, top: `${baseY}%`,
+            position: "absolute", left: `${startX}%`, top: `${baseY}%`, zIndex: 1,
             width: 0, height: 0, opacity: 0,
             "--sc": scale,
-            animation: `aoCloudIn 0.7s ${delay}s ease both, aoCloudDrift ${4 + i*0.4}s ${delay + 0.7}s ease-in-out infinite`,
+            animation: `aoCloudIn 0.9s ${delay}s ease both, aoCloudDrift ${5 + i*0.45}s ${delay + 0.9}s ease-in-out infinite`,
             pointerEvents: "none",
           }}>
             {puffs.map((p, j) => (
               <div key={j} style={{
                 position: "absolute", left: p.dx, top: p.dy,
                 width: p.r * 2, height: p.r * 1.5, borderRadius: "50%",
-                background: "radial-gradient(circle at 35% 30%, rgba(70,68,72,0.95) 0%, rgba(28,26,30,0.92) 65%, rgba(15,14,16,0.85) 100%)",
-                boxShadow: `0 ${p.r*0.4}px ${p.r*0.9}px rgba(${rimColor},0.35), inset 0 -${p.r*0.3}px ${p.r*0.5}px rgba(${rimColor},0.25)`,
+                background: "radial-gradient(circle at 35% 30%, rgba(76,73,80,0.95) 0%, rgba(30,28,33,0.93) 60%, rgba(12,11,14,0.88) 100%)",
+                boxShadow: `0 ${p.r*0.35}px ${p.r*0.85}px rgba(${rimColor},0.4), inset 0 -${p.r*0.3}px ${p.r*0.55}px rgba(${rimColor},0.3)`,
               }} />
             ))}
           </div>
+        );
+      })}
+
+      {/* LIGHTNING FLICKER — small internal flashes glowing within the cloud bank, not full bolts */}
+      {(tier === "gu_immortal" || tier === "venerable") && Array.from({ length: tier === "venerable" ? 12 : 6 }).map((_, i) => {
+        const fx = 6 + Math.random() * 88;
+        const fy = (tier === "venerable" ? -2 : 0) + Math.random() * (tier === "venerable" ? 22 : 15);
+        const size = tier === "venerable" ? (38 + Math.random() * 46) : (24 + Math.random() * 28);
+        const delay = t.chargeAt + 0.1 + Math.random() * Math.max(0.1, t.peakAt - t.chargeAt - 0.2);
+        const dur = 0.22 + Math.random() * 0.18;
+        const flickerColor = tier === "venerable" ? "255,225,215" : "255,250,225";
+        return (
+          <div key={"fl"+i} style={{
+            position: "absolute", left: `${fx}%`, top: `${fy}%`, zIndex: 1,
+            width: size, height: size * 0.55, borderRadius: "50%",
+            background: `radial-gradient(circle, rgba(${flickerColor},0.95) 0%, rgba(${cfg.glow},0.5) 45%, transparent 78%)`,
+            filter: "blur(1px)", mixBlendMode: "screen", opacity: 0,
+            animation: `aoFlicker ${dur}s ${delay}s ease-out both`,
+            pointerEvents: "none",
+          }} />
         );
       })}
 
@@ -937,6 +964,14 @@ function AscensionOverlay({ tier }) {
 
       {/* CHARGE — ground ring + rising light pillar */}
       <div style={{
+        position: "absolute", bottom: "50%", left: "50%", zIndex: 0,
+        width: cfg.pillarW * 3, height: `calc(${cfg.pillarH} * 1.05)`,
+        marginLeft: -(cfg.pillarW * 1.5),
+        transformOrigin: "bottom",
+        animation: `aoWarpShimmer ${Math.max(0.9, (t.peakAt - t.chargeAt) / 2)}s ${t.chargeAt}s ease-in-out 2 both`,
+        pointerEvents: "none",
+      }} />
+      <div style={{
         position: "absolute",
         width: cfg.pillarW * 2.4, height: cfg.pillarW * 0.5,
         borderRadius: "50%",
@@ -961,6 +996,18 @@ function AscensionOverlay({ tier }) {
         animation: `aoWhiteFlash 0.3s ${t.flashAt}s ease both`,
         pointerEvents: "none",
       }} />
+      <div style={{
+        position: "absolute", width: cfg.pillarW * 1.4, height: cfg.pillarW * 1.4, borderRadius: "50%",
+        animation: `aoWarpPulse 0.75s ${t.burstAt}s ease-out both`,
+        pointerEvents: "none",
+      }} />
+      {tier === "venerable" && (
+        <div style={{
+          position: "absolute", width: cfg.pillarW * 1.4, height: cfg.pillarW * 1.4, borderRadius: "50%",
+          animation: `aoWarpPulse 0.85s ${t.burstAt + 0.2}s ease-out both`,
+          pointerEvents: "none",
+        }} />
+      )}
       <div style={{
         position: "absolute", width: cfg.pillarW * 1.7, height: cfg.pillarW * 1.7, borderRadius: "50%",
         border: `2px solid rgba(${cfg.glow},0.85)`,
