@@ -381,7 +381,7 @@
         <div class="rz-auth-head">
           <div class="rz-auth-kicker">The Legends of Ren Zu</div>
           <div class="rz-auth-title">${
-            loggedIn ? "Your Account" : "Open the Archive"
+            loggedIn ? "Soul Mark Bound" : "Open the Archive"
           }</div>
         </div>
 
@@ -390,7 +390,7 @@
             loggedIn
               ? `
                 <div class="rz-auth-text">
-                  Your reading identity is now bound to The Omniarch. Your essence, realm, Gu collection, bookmarks, and progress can follow you across devices.
+                  Your soul mark is now bound to The Omniarch. Your realm, essence, Gu collection, bookmarks, and progress can follow you across devices.
                 </div>
 
                 <div class="rz-auth-profile-row">
@@ -601,12 +601,14 @@
   }
 
   async function signOut() {
-    setStatus("Signing out…");
+    setStatus("Severing the soul mark…");
 
     try {
       const client = await initSupabase();
 
-      await client.auth.signOut();
+      await client.auth.signOut({
+        scope: "local"
+      });
 
       session = null;
       currentUser = null;
@@ -622,6 +624,10 @@
           }
         })
       );
+
+      setTimeout(() => {
+        renderButton();
+      }, 100);
     } catch (err) {
       setStatus(err.message || "Could not sign out.");
     }
@@ -650,7 +656,7 @@
 
     root.innerHTML = `
       <button class="rz-auth-button" id="rz-auth-open">
-        ${currentUser ? "Account ✓" : "Login"}
+        ${currentUser ? "Soul Bound ✓" : "Login"}
       </button>
     `;
 
