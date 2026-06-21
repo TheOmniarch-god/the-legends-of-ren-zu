@@ -446,6 +446,12 @@
       closeBtn.onclick = closeModal;
     }
 
+    const signoutBtn = document.getElementById("rz-auth-signout");
+
+    if (signoutBtn) {
+      signoutBtn.onclick = signOut;
+    }
+
     const sendBtn = document.getElementById("rz-auth-send");
 
     if (sendBtn) {

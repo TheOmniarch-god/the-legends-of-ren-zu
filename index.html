@@ -2004,10 +2004,14 @@ const chapterKeyRef = useRef(null);
 
   function getTierName() {
     switch (tier) {
-      case "venerable": return "Venerable";
-      case "gu_immortal": return "Gu Immortal";
-      case "gu_master": return "Gu Master";
-      default: return "Mortal";
+      case "venerable":
+        return "Supreme Venerable";
+      case "gu_immortal":
+        return "Gu Immortal";
+      case "gu_master":
+        return "Gu Master";
+      default:
+        return "Mortal Aperture";
     }
   }
 
@@ -2217,15 +2221,31 @@ const chapterKeyRef = useRef(null);
   }
 
   const essenceStatus = () => {
-    if (essenceLoading) return backendMode === "api" ? "Communing with heaven..." : "Sensing aperture...";
-    if (tier === "venerable") return "Venerable — unlimited essence";
-    if (tier === "gu_immortal") return `Gu Immortal — ${narrationsRemaining} narrations · unlimited chat`;
-    if (tier === "gu_master") return `Gu Master — ${narrationsRemaining} narrations · ${chatsRemaining} chats`;
-    const today = getTodayKey();
-    if (lastResetDate !== today) {
-      return `Mortal — ${DAILY_AUDIO_LIMIT} narrations · ${DAILY_CHAT_LIMIT} chats today`;
+    if (essenceLoading) {
+      return backendMode === "api"
+        ? "Communing with heaven..."
+        : "Sensing aperture...";
     }
-    return `Mortal — ${Math.max(0, DAILY_AUDIO_LIMIT - dailyAudioUsed)} narrations · ${Math.max(0, DAILY_CHAT_LIMIT - dailyChatUsed)} chats left`;
+
+    if (tier === "venerable") {
+      return "Supreme Venerable — unlimited essence";
+    }
+
+    if (tier === "gu_immortal") {
+      return `Gu Immortal — ${narrationsRemaining} narrations · unlimited chat`;
+    }
+
+    if (tier === "gu_master") {
+      return `Gu Master — ${narrationsRemaining} narrations · ${chatsRemaining} chats`;
+    }
+
+    const today = getTodayKey();
+
+    if (lastResetDate !== today) {
+      return `Mortal Aperture — ${DAILY_AUDIO_LIMIT} narrations · ${DAILY_CHAT_LIMIT} chats today`;
+    }
+
+    return `Mortal Aperture — ${Math.max(0, DAILY_AUDIO_LIMIT - dailyAudioUsed)} narrations · ${Math.max(0, DAILY_CHAT_LIMIT - dailyChatUsed)} chats left`;
   };
   const filtered = TAGGED.filter(c => {
     const q = query.toLowerCase();
