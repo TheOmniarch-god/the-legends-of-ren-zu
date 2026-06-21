@@ -1,12 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import {
+  getSupabaseAdmin,
+  getUserFromRequest,
+  sendJson
+} from "./_supabase.js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-// Same limits as the frontend's local-fallback constants — kept in sync
-// manually since this is plain JS, not a shared module.
 const DAILY_CHAT_LIMIT = 3;
 const DAILY_AUDIO_LIMIT = 2;
 
@@ -14,150 +11,353 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// POST /api/use-credit  { deviceId, type: "chat" | "audio" }
-// Atomically spends one unit of essence for this device, based on tier:
-//   venerable    -> always allowed, nothing decremented
-//   gu_immortal  -> audio decrements narrations_remaining, chat is free
-//   gu_master    -> audio decrements narrations_remaining, chat decrements chats_remaining
-//   mortal       -> audio/chat decrement the daily_* counters against fixed daily limits
-// Returns 402 (Payment Required) when the relevant allowance is exhausted,
-// which the frontend uses to trigger the Treasure Yellow Heaven paywall.
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+function normalizeTier(tier) {
+  if (
+    tier === "mortal" ||
+    tier === "gu_master" ||
+    tier === "gu_immortal" ||
+    tier === "venerable"
+  ) {
+    return tier;
   }
 
-  const { deviceId, type } = req.body || {};
-  if (!deviceId || (type !== "chat" && type !== "audio")) {
-    return res.status(400).json({ error: "Missing or invalid deviceId/type" });
-  }
+  return "mortal";
+}
 
-  try {
-    const { data: user, error } = await supabase
+async function getOrCreateGuestUser(supabase, deviceId) {
+  let { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", deviceId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!user) {
+    const { data: created, error: insertErr } = await supabase
       .from("users")
-      .select("*")
-      .eq("id", deviceId)
-      .maybeSingle();
+      .insert({
+        id: deviceId,
+        tier: "mortal",
+        daily_chat_used: 0,
+        daily_audio_used: 0,
+        narrations_remaining: 0,
+        chats_remaining: 0,
+        last_reset_date: todayKey()
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    user = created;
+  }
+
+  return user;
+}
+
+async function getOrCreateProfile(supabase, authUser) {
+  let { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", authUser.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!profile) {
+    const { data: created, error: insertErr } = await supabase
+      .from("profiles")
+      .insert({
+        id: authUser.id,
+        email: authUser.email || null,
+        username: "",
+        tier: "mortal",
+        daily_chat_used: 0,
+        daily_audio_used: 0,
+        narrations_remaining: 0,
+        chats_remaining: 0,
+        last_reset_date: todayKey(),
+        collected_gu: []
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    profile = created;
+  }
+
+  return profile;
+}
+
+function responseFromRow(row) {
+  return {
+    success: true,
+    tier: normalizeTier(row.tier),
+    dailyChatUsed: row.daily_chat_used || 0,
+    dailyAudioUsed: row.daily_audio_used || 0,
+    narrationsRemaining: row.narrations_remaining || 0,
+    chatsRemaining: row.chats_remaining || 0
+  };
+}
+
+async function spendFromTable({ supabase, table, idColumn, idValue, row, type }) {
+  const tier = normalizeTier(row.tier);
+  const today = todayKey();
+
+  let dailyChatUsed = row.daily_chat_used || 0;
+  let dailyAudioUsed = row.daily_audio_used || 0;
+
+  if (row.last_reset_date !== today) {
+    dailyChatUsed = 0;
+    dailyAudioUsed = 0;
+  }
+
+  // Venerable: unlimited everything.
+  if (tier === "venerable") {
+    if (row.last_reset_date !== today) {
+      await supabase
+        .from(table)
+        .update({
+          daily_chat_used: 0,
+          daily_audio_used: 0,
+          last_reset_date: today
+        })
+        .eq(idColumn, idValue);
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        tier,
+        dailyChatUsed: 0,
+        dailyAudioUsed: 0,
+        narrationsRemaining: row.narrations_remaining || 0,
+        chatsRemaining: row.chats_remaining || 0
+      }
+    };
+  }
+
+  // Gu Immortal: unlimited chat, metered narrations.
+  if (tier === "gu_immortal") {
+    if (type === "chat") {
+      return {
+        status: 200,
+        body: {
+          success: true,
+          tier,
+          dailyChatUsed,
+          dailyAudioUsed,
+          narrationsRemaining: row.narrations_remaining || 0,
+          chatsRemaining: row.chats_remaining || 0
+        }
+      };
+    }
+
+    if ((row.narrations_remaining || 0) > 0) {
+      const { data: updated, error } = await supabase
+        .from(table)
+        .update({
+          narrations_remaining: (row.narrations_remaining || 0) - 1,
+          daily_chat_used: dailyChatUsed,
+          daily_audio_used: dailyAudioUsed,
+          last_reset_date: today
+        })
+        .eq(idColumn, idValue)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        status: 200,
+        body: responseFromRow(updated)
+      };
+    }
+
+    return {
+      status: 402,
+      body: { error: "Narrations exhausted" }
+    };
+  }
+
+  // Gu Master: metered narrations and chats.
+  if (tier === "gu_master") {
+    if (type === "audio") {
+      if ((row.narrations_remaining || 0) > 0) {
+        const { data: updated, error } = await supabase
+          .from(table)
+          .update({
+            narrations_remaining: (row.narrations_remaining || 0) - 1,
+            daily_chat_used: dailyChatUsed,
+            daily_audio_used: dailyAudioUsed,
+            last_reset_date: today
+          })
+          .eq(idColumn, idValue)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return {
+          status: 200,
+          body: responseFromRow(updated)
+        };
+      }
+
+      return {
+        status: 402,
+        body: { error: "Narrations exhausted" }
+      };
+    }
+
+    if ((row.chats_remaining || 0) > 0) {
+      const { data: updated, error } = await supabase
+        .from(table)
+        .update({
+          chats_remaining: (row.chats_remaining || 0) - 1,
+          daily_chat_used: dailyChatUsed,
+          daily_audio_used: dailyAudioUsed,
+          last_reset_date: today
+        })
+        .eq(idColumn, idValue)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        status: 200,
+        body: responseFromRow(updated)
+      };
+    }
+
+    return {
+      status: 402,
+      body: { error: "Chats exhausted" }
+    };
+  }
+
+  // Mortal: small daily allowance.
+  if (type === "audio") {
+    if (dailyAudioUsed < DAILY_AUDIO_LIMIT) {
+      const { data: updated, error } = await supabase
+        .from(table)
+        .update({
+          daily_audio_used: dailyAudioUsed + 1,
+          daily_chat_used: dailyChatUsed,
+          last_reset_date: today
+        })
+        .eq(idColumn, idValue)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        status: 200,
+        body: responseFromRow(updated)
+      };
+    }
+
+    return {
+      status: 402,
+      body: { error: "Daily audio limit reached" }
+    };
+  }
+
+  if (dailyChatUsed < DAILY_CHAT_LIMIT) {
+    const { data: updated, error } = await supabase
+      .from(table)
+      .update({
+        daily_chat_used: dailyChatUsed + 1,
+        daily_audio_used: dailyAudioUsed,
+        last_reset_date: today
+      })
+      .eq(idColumn, idValue)
+      .select()
+      .single();
 
     if (error) throw error;
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+
+    return {
+      status: 200,
+      body: responseFromRow(updated)
+    };
+  }
+
+  return {
+    status: 402,
+    body: { error: "Daily chat limit reached" }
+  };
+}
+
+// POST /api/use-credit { deviceId, type: "chat" | "audio" }
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { error: "Method not allowed" });
+  }
+
+  const body = req.body || {};
+  const type = body.type;
+  const deviceId = String(body.deviceId || "").trim();
+
+  if (type !== "chat" && type !== "audio") {
+    return sendJson(res, 400, { error: "Missing or invalid type" });
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  try {
+    const authUser = await getUserFromRequest(req);
+
+    // Logged-in mode: spend from email profile.
+    if (authUser) {
+      const profile = await getOrCreateProfile(supabase, authUser);
+
+      const result = await spendFromTable({
+        supabase,
+        table: "profiles",
+        idColumn: "id",
+        idValue: authUser.id,
+        row: profile,
+        type
+      });
+
+      return sendJson(res, result.status, {
+        ...result.body,
+        accountMode: "email"
+      });
     }
 
-    // Reset daily counters first if a new day has started.
-    const today = todayKey();
-    let dailyChatUsed = user.daily_chat_used;
-    let dailyAudioUsed = user.daily_audio_used;
-    if (user.last_reset_date !== today) {
-      dailyChatUsed = 0;
-      dailyAudioUsed = 0;
+    // Guest mode: spend from device row.
+    if (!deviceId) {
+      return sendJson(res, 400, { error: "Missing deviceId" });
     }
 
-    // ── Venerable: unlimited, nothing to track ──
-    if (user.tier === "venerable") {
-      return res.status(200).json({ success: true });
-    }
+    const guest = await getOrCreateGuestUser(supabase, deviceId);
 
-    // ── Gu Immortal: unlimited chat, metered narrations ──
-    if (user.tier === "gu_immortal") {
-      if (type === "chat") {
-        return res.status(200).json({ success: true });
-      }
-      if (user.narrations_remaining > 0) {
-        const { data: updated, error: updateErr } = await supabase
-          .from("users")
-          .update({ narrations_remaining: user.narrations_remaining - 1 })
-          .eq("id", deviceId)
-          .select()
-          .single();
-        if (updateErr) throw updateErr;
-        return res.status(200).json({
-          success: true,
-          narrationsRemaining: updated.narrations_remaining,
-        });
-      }
-      return res.status(402).json({ error: "Narrations exhausted" });
-    }
+    const result = await spendFromTable({
+      supabase,
+      table: "users",
+      idColumn: "id",
+      idValue: deviceId,
+      row: guest,
+      type
+    });
 
-    // ── Gu Master: metered narrations and chats ──
-    if (user.tier === "gu_master") {
-      if (type === "audio") {
-        if (user.narrations_remaining > 0) {
-          const { data: updated, error: updateErr } = await supabase
-            .from("users")
-            .update({ narrations_remaining: user.narrations_remaining - 1 })
-            .eq("id", deviceId)
-            .select()
-            .single();
-          if (updateErr) throw updateErr;
-          return res.status(200).json({
-            success: true,
-            narrationsRemaining: updated.narrations_remaining,
-          });
-        }
-        return res.status(402).json({ error: "Narrations exhausted" });
-      } else {
-        if (user.chats_remaining > 0) {
-          const { data: updated, error: updateErr } = await supabase
-            .from("users")
-            .update({ chats_remaining: user.chats_remaining - 1 })
-            .eq("id", deviceId)
-            .select()
-            .single();
-          if (updateErr) throw updateErr;
-          return res.status(200).json({
-            success: true,
-            chatsRemaining: updated.chats_remaining,
-          });
-        }
-        return res.status(402).json({ error: "Chats exhausted" });
-      }
-    }
-
-    // ── Mortal: fixed small daily allowance ──
-    if (type === "audio") {
-      if (dailyAudioUsed < DAILY_AUDIO_LIMIT) {
-        const { data: updated, error: updateErr } = await supabase
-          .from("users")
-          .update({
-            daily_audio_used: dailyAudioUsed + 1,
-            daily_chat_used: dailyChatUsed,
-            last_reset_date: today,
-          })
-          .eq("id", deviceId)
-          .select()
-          .single();
-        if (updateErr) throw updateErr;
-        return res.status(200).json({
-          success: true,
-          dailyAudioUsed: updated.daily_audio_used,
-          dailyChatUsed: updated.daily_chat_used,
-        });
-      }
-      return res.status(402).json({ error: "Daily audio limit reached" });
-    } else {
-      if (dailyChatUsed < DAILY_CHAT_LIMIT) {
-        const { data: updated, error: updateErr } = await supabase
-          .from("users")
-          .update({
-            daily_chat_used: dailyChatUsed + 1,
-            daily_audio_used: dailyAudioUsed,
-            last_reset_date: today,
-          })
-          .eq("id", deviceId)
-          .select()
-          .single();
-        if (updateErr) throw updateErr;
-        return res.status(200).json({
-          success: true,
-          dailyChatUsed: updated.daily_chat_used,
-          dailyAudioUsed: updated.daily_audio_used,
-        });
-      }
-      return res.status(402).json({ error: "Daily chat limit reached" });
-    }
+    return sendJson(res, result.status, {
+      ...result.body,
+      accountMode: "device"
+    });
   } catch (err) {
     console.error("api/use-credit error:", err);
-    return res.status(500).json({ error: "Internal error" });
+
+    return sendJson(res, 500, {
+      error: "Internal error",
+      details: err.message || String(err)
+    });
   }
 }
