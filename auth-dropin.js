@@ -314,7 +314,7 @@
         <div class="rz-auth-head">
           <div class="rz-auth-kicker">The Legends of Ren Zu</div>
           <div class="rz-auth-title">${
-            loggedIn ? "Your Account" : "Enter the aperture"
+            loggedIn ? "Your Account" : "ENTER EMAIL"
           }</div>
         </div>
 
