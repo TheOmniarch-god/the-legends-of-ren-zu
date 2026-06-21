@@ -1941,12 +1941,34 @@ const chapterKeyRef = useRef(null);
     syncWithBackend(id);
   }, []);
 
+  async function getAuthHeaders() {
+    try {
+      const token = await window.RenZuAuth?.getAccessToken?.();
+
+      if (token) {
+        return { Authorization: `Bearer ${token}` };
+      }
+    } catch (_) {}
+
+    return {};
+  }
+
   async function syncWithBackend(id) {
     if (!id) return;
+
     try {
-      const res = await fetch(`/api/me?deviceId=${encodeURIComponent(id)}`);
+      const authHeaders = await getAuthHeaders();
+
+      const res = await fetch(`/api/me?deviceId=${encodeURIComponent(id)}`, {
+        headers: {
+          ...authHeaders
+        }
+      });
+
       if (!res.ok) throw new Error("Backend unavailable");
+
       const data = await res.json();
+
       setTier(data.tier || "mortal");
       setDailyChatUsed(data.dailyChatUsed || 0);
       setDailyAudioUsed(data.dailyAudioUsed || 0);
@@ -1954,11 +1976,29 @@ const chapterKeyRef = useRef(null);
       setChatsRemaining(data.chatsRemaining || 0);
       setUserEmail(data.userEmail || "");
       setUserName(data.userName || "");
+
+      if (Array.isArray(data.collectedGu)) {
+        setCollectedGu(data.collectedGu);
+      }
+
       setBackendMode("api");
     } catch (err) {
       setBackendMode("local");
     }
   }
+
+  // When the email account changes, reload realm/essence from the account profile.
+  useEffect(() => {
+    function onAuthChange() {
+      if (deviceId) syncWithBackend(deviceId);
+    }
+
+    window.addEventListener("renzu-auth-change", onAuthChange);
+
+    return () => {
+      window.removeEventListener("renzu-auth-change", onAuthChange);
+    };
+  }, [deviceId]);
 
   useEffect(() => {
     try {
@@ -2034,9 +2074,14 @@ const chapterKeyRef = useRef(null);
     // Try backend first
     if (backendMode === "api") {
       try {
+        const authHeaders = await getAuthHeaders();
+
         const res = await fetch("/api/use-credit", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders
+          },
           body: JSON.stringify({ deviceId, type }),
         });
         const data = await res.json();
@@ -2207,14 +2252,21 @@ const chapterKeyRef = useRef(null);
     }
   }
 
-  function saveProfile({ username, email }) {
+  async function saveProfile({ username, email }) {
     setUserName(username || "");
     setUserEmail(email || "");
-    // Optionally sync to backend
+
+    // Optionally sync to backend. Logged-in users send their auth token so
+    // profile edits can bind to email identity instead of only device identity.
     if (backendMode === "api" && deviceId) {
+      const authHeaders = await getAuthHeaders();
+
       fetch("/api/update-profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders
+        },
         body: JSON.stringify({ deviceId, username: username || "", email: email || "" }),
       }).catch(() => {});
     }
