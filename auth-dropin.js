@@ -323,8 +323,7 @@
             loggedIn
               ? `
                 <div class="rz-auth-text">
-                  Your reading identity is now linked to The Omniarch. Later, this can sync essence, purchases, Gu collection, bookmarks, and progress.
-                </div>
+Your soul mark is now bound to The Omniarch. Your essence, realm, Gu collection, bookmarks, and progress can follow you across devices.                </div>
 
                 <div class="rz-auth-profile-row">
                   <span>Email</span>
