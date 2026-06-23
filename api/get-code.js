@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     .from("payment_codes")
     .select("code, tier, used")
     .eq("paystack_reference", reference)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     // Webhook may not have landed yet — frontend should retry for a few seconds
