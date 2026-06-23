@@ -841,7 +841,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
 }
 
 // ─── Profile Modal — realm, username, essence balance ─────────────────────────
-function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, tierName, tierIcon, essenceStatus, collectedGu, onSave, accountMode, onBindAccount, onSignOut }) {
+function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, tierName, tierIcon, essenceStatus, collectedGu, onSave, accountMode, onBindAccount, onSignOut, readingProgress, onContinueReading, onResetReadingProgress, totalEntries }) {
   const [editName, setEditName] = useState(username || "");
   const [editEmail, setEditEmail] = useState(email || "");
   const [saving, setSaving] = useState(false);
@@ -870,6 +870,17 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
   const totalGu = GU_POOL_ORDERED.length;
   const progressPct = totalGu > 0 ? Math.round((discoveredCount / totalGu) * 100) : 0;
   const latestGu = collectedGu && collectedGu.length > 0 ? collectedGu[collectedGu.length - 1] : null;
+  const readCount = Array.isArray(readingProgress?.chaptersRead) ? readingProgress.chaptersRead.length : 0;
+  const readingPct = totalEntries > 0 ? Math.round((readCount / totalEntries) * 100) : 0;
+  const lastOpenedText = readingProgress?.lastOpenedAt
+    ? (() => {
+        try {
+          return new Date(readingProgress.lastOpenedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+        } catch (_) {
+          return "";
+        }
+      })()
+    : "";
 
   async function handleSave() {
     setSaving(true);
@@ -947,6 +958,13 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
           }}>
             {progressPct}% codex complete
           </span>
+          <span style={{
+            padding: "4px 10px", borderRadius: 999, border: `1px solid ${border}`,
+            fontSize: 9, color: textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: headFont,
+            background: cardBg
+          }}>
+            {readingPct}% reading progress
+          </span>
         </div>
 
         <div style={{
@@ -963,6 +981,68 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
           </div>
           <div style={{ fontSize: 10, color: textDim, marginTop: 8, lineHeight: 1.55 }}>
             {essenceStatus()}
+          </div>
+        </div>
+
+        <div style={{
+          textAlign: "left", marginBottom: 16, padding: "14px 14px 12px",
+          borderRadius: 16, border: `1px solid ${border}`, background: cardBg
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+            <div style={{ fontFamily: headFont, fontSize: 9, color: textDim, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+              Reading Journey
+            </div>
+            <div style={{ fontFamily: headFont, fontSize: 9, color: textDim, letterSpacing: "0.08em" }}>
+              {readCount} / {totalEntries}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: text, lineHeight: 1.65, fontFamily: "'IM Fell English', Georgia, serif", marginBottom: 10 }}>
+            {readingProgress?.lastChapterTitle
+              ? `You last opened Part ${readingProgress.lastChapterNum}: ${readingProgress.lastChapterTitle}.`
+              : "You have not begun your journey yet. Open any entry to start tracking your path."}
+          </div>
+          {lastOpenedText && (
+            <div style={{ fontSize: 10, color: textDim, marginBottom: 10 }}>
+              Last opened: {lastOpenedText}
+            </div>
+          )}
+          <div style={{
+            height: 8, borderRadius: 999, overflow: "hidden",
+            background: D ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+            marginBottom: 12
+          }}>
+            <div style={{
+              width: `${readingPct}%`, height: "100%",
+              background: S
+                ? "linear-gradient(90deg, rgba(139,94,26,0.92), rgba(199,154,59,0.88))"
+                : D
+                  ? "linear-gradient(90deg, rgba(255,255,255,0.78), rgba(180,180,180,0.9))"
+                  : "linear-gradient(90deg, rgba(0,0,0,0.22), rgba(0,0,0,0.38))"
+            }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={onContinueReading}
+              disabled={!readingProgress?.lastChapterNum}
+              style={{
+                flex: 1, minWidth: 140, padding: "10px 12px", borderRadius: 12,
+                background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.16)" : "rgba(0,0,0,0.06)",
+                border: `1px solid ${border}`, color: text, fontFamily: headFont, fontSize: 11, cursor: readingProgress?.lastChapterNum ? "pointer" : "default",
+                opacity: readingProgress?.lastChapterNum ? 1 : 0.55
+              }}>
+              Continue Reading
+            </button>
+            <button onClick={onResetReadingProgress}
+              disabled={!readCount}
+              style={{
+                flex: 1, minWidth: 120, padding: "10px 12px", borderRadius: 12,
+                background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 11,
+                cursor: readCount ? "pointer" : "default", opacity: readCount ? 1 : 0.55
+              }}>
+              Reset Progress
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: textDim, marginTop: 8, lineHeight: 1.5 }}>
+            Reading progress currently lives on this browser/device. Account sync can be layered on later without losing this base system.
           </div>
         </div>
 
@@ -2132,6 +2212,12 @@ const chapterKeyRef = useRef(null);
   const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
   const [accountMode, setAccountMode] = useState("device");
+  const [readingProgress, setReadingProgress] = useState({
+    lastChapterNum: "",
+    lastChapterTitle: "",
+    lastOpenedAt: "",
+    chaptersRead: []
+  });
   const [tier, setTier] = useState("mortal");
   const [dailyChatUsed, setDailyChatUsed] = useState(0);
   const [dailyAudioUsed, setDailyAudioUsed] = useState(0);
@@ -2188,6 +2274,15 @@ const chapterKeyRef = useRef(null);
 
   function generateDeviceId() {
     return 'd-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+  }
+
+  function createEmptyProgress() {
+    return {
+      lastChapterNum: "",
+      lastChapterTitle: "",
+      lastOpenedAt: "",
+      chaptersRead: []
+    };
   }
 
   function cancelPaymentLookup() {
@@ -2438,6 +2533,19 @@ const chapterKeyRef = useRef(null);
       }
     } catch (_) {}
 
+    try {
+      const savedProgress = localStorage.getItem("renzu_progress");
+      if (savedProgress) {
+        const parsed = JSON.parse(savedProgress);
+        setReadingProgress({
+          lastChapterNum: parsed.lastChapterNum || "",
+          lastChapterTitle: parsed.lastChapterTitle || "",
+          lastOpenedAt: parsed.lastOpenedAt || "",
+          chaptersRead: Array.isArray(parsed.chaptersRead) ? parsed.chaptersRead : []
+        });
+      }
+    } catch (_) {}
+
     syncWithBackend(id);
   }, []);
 
@@ -2553,6 +2661,12 @@ const chapterKeyRef = useRef(null);
       }));
     } catch (_) {}
   }, [tier, dailyChatUsed, dailyAudioUsed, narrationsRemaining, chatsRemaining, userEmail, userName, accountMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("renzu_progress", JSON.stringify(readingProgress));
+    } catch (_) {}
+  }, [readingProgress]);
 
   // Load Gu Worm collection from localStorage on mount
   useEffect(() => {
@@ -3262,7 +3376,50 @@ const LONG_PRESS_MOVE_THRESHOLD = 16; // px — ignore sub-pixel tremor, only ca
     sentencesRef.current = [];
   }, [selected]);
 
+  function markChapterOpened(chapter) {
+    if (!chapter) return;
+
+    setReadingProgress(prev => {
+      const readSet = new Set(Array.isArray(prev.chaptersRead) ? prev.chaptersRead : []);
+      readSet.add(chapter.num);
+
+      return {
+        lastChapterNum: chapter.num,
+        lastChapterTitle: chapter.title,
+        lastOpenedAt: new Date().toISOString(),
+        chaptersRead: Array.from(readSet)
+      };
+    });
+  }
+
+  function continueReading() {
+    if (!readingProgress?.lastChapterNum) return;
+    const chapter = TAGGED.find(c => c.num === readingProgress.lastChapterNum);
+    if (chapter) {
+      select(chapter);
+    }
+  }
+
+  function resetReadingProgress() {
+    const ok = window.confirm("Reset your reading journey on this device?");
+    if (!ok) return;
+    setReadingProgress(createEmptyProgress());
+  }
+
+  function formatProgressDate(iso) {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+    } catch (_) {
+      return "";
+    }
+  }
+
   function select(c) {
+    markChapterOpened(c);
     setSelected(c); setAiResponse(""); setAiQuestion("");
     try {
       window.history.pushState({ view: "chapter", num: c.num }, "", "#chapter-" + encodeURIComponent(c.num));
@@ -3554,6 +3711,17 @@ function getOrBuildSentences() {
     return <React.Fragment>{highlightThemed(selected.body, query, S, D)}</React.Fragment>;
   }
 
+  const continueChapter = readingProgress?.lastChapterNum
+    ? TAGGED.find(c => c.num === readingProgress.lastChapterNum) || null
+    : null;
+  const chaptersReadCount = Array.isArray(readingProgress?.chaptersRead)
+    ? readingProgress.chaptersRead.length
+    : 0;
+  const readingCompletion = TAGGED.length > 0
+    ? Math.round((chaptersReadCount / TAGGED.length) * 100)
+    : 0;
+  const lastProgressText = formatProgressDate(readingProgress?.lastOpenedAt);
+
   // Scroll progress bar color
   const progressColor = S
     ? "linear-gradient(90deg, rgba(139,94,26,0.9), rgba(180,130,40,0.85))"
@@ -3764,6 +3932,48 @@ function getOrBuildSentences() {
         {/* ── CHAPTER LIST ── */}
         {!selected && (
           <>
+            {continueChapter && (
+              <div style={{
+                ...sq(24),
+                padding: "18px 18px 16px",
+                marginBottom: 16,
+                background: D
+                  ? "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))"
+                  : S
+                    ? "linear-gradient(180deg, rgba(180,130,40,0.14), rgba(139,94,26,0.08))"
+                    : "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.55))",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 9, color: textDim, letterSpacing: "0.18em", textTransform: "uppercase", fontFamily: headFont, marginBottom: 6 }}>
+                      Continue Reading
+                    </div>
+                    <div style={{ fontFamily: headFont, fontSize: 17, color: text, lineHeight: 1.3 }}>
+                      Part {continueChapter.num}: {continueChapter.title}
+                    </div>
+                  </div>
+                  <button onClick={continueReading}
+                    style={{
+                      padding: "10px 14px", borderRadius: 12, border: `1px solid ${border}`,
+                      background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.16)" : "rgba(0,0,0,0.06)",
+                      color: text, fontFamily: headFont, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    }}>
+                    Open Last Entry
+                  </button>
+                </div>
+                <div style={{ fontSize: 11.5, color: textMid, lineHeight: 1.7, marginBottom: 10, fontFamily: bodyFont }}>
+                  {chaptersReadCount} of {TAGGED.length} entries opened · {readingCompletion}% complete
+                  {lastProgressText ? ` · Last opened ${lastProgressText}` : ""}
+                </div>
+                <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: D ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)" }}>
+                  <div style={{
+                    width: `${readingCompletion}%`, height: "100%",
+                    background: progressColor
+                  }} />
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
               <div style={{ fontSize: 10, color: textDim, letterSpacing: "0.18em", textTransform: "uppercase", fontFamily: headFont }}>
                 {query || theme !== "all" ? `${filtered.length} ${filtered.length === 1 ? "result" : "results"}` : "44 chapters · 42 entries"}
@@ -3810,9 +4020,19 @@ function getOrBuildSentences() {
                   {/* Left accent stripe */}
                   <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "22px 0 0 22px", background: isHov ? (S ? "linear-gradient(180deg, rgba(180,130,40,0.7) 0%, rgba(139,94,26,0.3) 100%)" : D ? "linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(200,200,200,0.15) 100%)" : "rgba(0,0,0,0.18)") : "transparent", transition: "background 0.25s" }} />
                   <div style={{ padding: "19px 20px 19px 22px", position: "relative" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: textDim, paddingRight: 10, borderRight: `1px solid ${border}`, lineHeight: 1, fontFamily: headFont }}>Part {c.num}</span>
                       <span style={{ fontSize: 16, fontWeight: 600, fontFamily: headFont, color: text, letterSpacing: S ? "0.02em" : "-0.01em", lineHeight: 1.3 }}>{highlightThemed(c.title, query, S, D)}</span>
+                      {Array.isArray(readingProgress?.chaptersRead) && readingProgress.chaptersRead.includes(c.num) && (
+                        <span style={{ fontSize: 8, padding: "3px 8px", borderRadius: 999, border: `1px solid ${border}`, color: textDim, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: headFont }}>
+                          Read
+                        </span>
+                      )}
+                      {readingProgress?.lastChapterNum === c.num && (
+                        <span style={{ fontSize: 8, padding: "3px 8px", borderRadius: 999, border: `1px solid ${borderHov}`, color: text, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: headFont }}>
+                          Last Opened
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12.5, color: textMid, lineHeight: 1.68, maxWidth: "80%", fontFamily: bodyFont }}>
                       {highlightThemed(c.body.slice(0, 135).replace(/\n/g, " "), query, S, D)}…
@@ -4228,9 +4448,13 @@ function getOrBuildSentences() {
           essenceStatus={essenceStatus}
           collectedGu={collectedGu}
           accountMode={accountMode}
+          readingProgress={readingProgress}
+          totalEntries={TAGGED.length}
           onSave={saveProfile}
           onBindAccount={bindProfileToEmail}
           onSignOut={signOutProfileAccount}
+          onContinueReading={continueReading}
+          onResetReadingProgress={resetReadingProgress}
         />
       )}
 
