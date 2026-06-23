@@ -708,6 +708,133 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S }) {
   );
 }
 
+function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [data?.code, data?.txRef, data?.visible]);
+
+  if (!data || !data.visible) return null;
+
+  const border = D ? "rgba(255,255,255,0.10)" : S ? "rgba(180,130,40,0.40)" : "rgba(0,0,0,0.12)";
+  const surface = D ? "rgba(8,8,10,0.97)" : S ? "rgba(245,230,200,0.98)" : "rgba(255,255,255,0.99)";
+  const text = D ? "#dddbd5" : S ? "#2a1502" : "#0d0c09";
+  const textDim = D ? "#9a9890" : S ? "#7a4e18" : "#6a6660";
+  const headFont = "Metamorphous, 'Palatino Linotype', Georgia, serif";
+  const failed = data.status && data.status !== "successful";
+
+  function copyCode() {
+    if (!data.code) return;
+    navigator.clipboard?.writeText(data.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {});
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 10001,
+      background: "rgba(0,0,0,0.78)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+      animation: "fadeUp 0.22s ease",
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(460px, 94vw)", maxHeight: "90vh", overflow: "auto",
+        background: surface, border: `1px solid ${border}`, borderRadius: 26,
+        boxShadow: "0 28px 90px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.04)",
+        padding: "30px 26px 24px", textAlign: "center", position: "relative",
+      }}>
+        <button onClick={onClose} style={{
+          position: "absolute", top: 12, right: 14, width: 32, height: 32, borderRadius: "50%",
+          background: "transparent", border: "none", color: textDim, fontSize: 18, cursor: "pointer",
+        }}>✕</button>
+
+        <div style={{ fontSize: 40, marginBottom: 8 }}>{failed ? "⚠️" : data.code ? "🎁" : "⏳"}</div>
+        <div style={{ fontFamily: headFont, fontSize: 20, fontWeight: 700, color: text, marginBottom: 8 }}>
+          {failed ? "Offering incomplete" : data.code ? "Your realm code is ready" : "Confirming your offering"}
+        </div>
+
+        <div style={{ fontSize: 13, color: textDim, lineHeight: 1.6, marginBottom: 16, fontFamily: "'IM Fell English', Georgia, serif" }}>
+          {failed
+            ? "Flutterwave returned you without a successful payment. If you were charged, contact support with the transaction reference below."
+            : data.code
+              ? "If the email delays or never arrives, you can still claim your realm right here or copy the code for later."
+              : "Your payment redirect worked. Heaven is now waiting for the webhook to finish refining your access code. This can take a few seconds."}
+        </div>
+
+        {data.txRef && (
+          <div style={{
+            fontSize: 10, color: textDim, marginBottom: 14, lineHeight: 1.6,
+            padding: "10px 12px", borderRadius: 12, border: `1px solid ${border}`,
+            background: D ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+            overflowWrap: "anywhere"
+          }}>
+            <strong style={{ color: text }}>Transaction Ref:</strong> {data.txRef}
+          </div>
+        )}
+
+        {!failed && data.loading && (
+          <div style={{ fontSize: 12, color: textDim, marginBottom: 16 }}>
+            Waiting for Flutterwave webhook confirmation…
+          </div>
+        )}
+
+        {!failed && data.code && (
+          <>
+            <div style={{
+              marginBottom: 14, padding: "16px 14px", borderRadius: 16,
+              border: `1px solid ${border}`,
+              background: D ? "rgba(255,255,255,0.04)" : S ? "rgba(139,94,26,0.08)" : "rgba(0,0,0,0.03)"
+            }}>
+              <div style={{ fontSize: 10, color: textDim, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, fontFamily: headFont }}>
+                {data.tier ? `${data.tier.replaceAll("_", " ")} token` : "Cultivator token"}
+              </div>
+              <div style={{ fontFamily: headFont, fontSize: 18, color: text, letterSpacing: "0.08em", overflowWrap: "anywhere" }}>
+                {data.code}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              <button onClick={onRedeem}
+                disabled={data.redeeming}
+                style={{
+                  padding: "10px 16px", borderRadius: 12, border: `1px solid ${border}`,
+                  background: D ? "rgba(255,255,255,0.13)" : S ? "#c79a3b" : "#1a1a1a",
+                  color: D ? "#fff" : S ? "#1f0f02" : "#fff", fontSize: 12, cursor: "pointer", fontFamily: headFont, fontWeight: 600,
+                  opacity: data.redeeming ? 0.7 : 1,
+                }}>
+                {data.redeeming ? "Claiming…" : "Claim realm now"}
+              </button>
+              <button onClick={copyCode}
+                style={{
+                  padding: "10px 16px", borderRadius: 12, border: `1px solid ${border}`,
+                  background: "transparent", color: text, fontSize: 12, cursor: "pointer", fontFamily: headFont, fontWeight: 600,
+                }}>
+                {copied ? "Copied" : "Copy code"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {!failed && !data.loading && !data.code && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            <button onClick={onRetry}
+              style={{
+                padding: "10px 16px", borderRadius: 12, border: `1px solid ${border}`,
+                background: "transparent", color: text, fontSize: 12, cursor: "pointer", fontFamily: headFont, fontWeight: 600,
+              }}>
+              Check again
+            </button>
+          </div>
+        )}
+
+        {data.error && <div style={{ fontSize: 11, color: "tomato", marginTop: 10, lineHeight: 1.6 }}>{data.error}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ─── Profile Modal — realm, username, essence balance ─────────────────────────
 function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, tierName, tierIcon, essenceStatus, collectedGu, onSave }) {
   const [editName, setEditName] = useState(username);
@@ -1865,6 +1992,17 @@ const chapterKeyRef = useRef(null);
   const [lastResetDate, setLastResetDate] = useState(null);
   const [showTreasure, setShowTreasure] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [paymentReturn, setPaymentReturn] = useState({
+    visible: false,
+    status: "",
+    txRef: "",
+    transactionId: "",
+    code: "",
+    tier: "",
+    loading: false,
+    error: "",
+    redeeming: false
+  });
   const [essenceLoading, setEssenceLoading] = useState(false);
   const [ascensionTier, setAscensionTier] = useState(null);
   const [refiningTier, setRefiningTier] = useState(null);
@@ -1886,6 +2024,7 @@ const chapterKeyRef = useRef(null);
   const aiRef    = useRef(null);
   const customRef = useRef(null);
   const topRef   = useRef(null);
+  const paymentLookupTimerRef = useRef(null);
 
   // ── Cultivation billing / essence helpers ────────────────────────────
   const DAILY_CHAT_LIMIT = 3;
@@ -1900,6 +2039,161 @@ const chapterKeyRef = useRef(null);
 
   function generateDeviceId() {
     return 'd-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+  }
+
+  function cancelPaymentLookup() {
+    if (paymentLookupTimerRef.current) {
+      clearTimeout(paymentLookupTimerRef.current);
+      paymentLookupTimerRef.current = null;
+    }
+  }
+
+  function clearPaymentParamsFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      ["status", "tx_ref", "transaction_id", "txRef", "transactionId"].forEach(k => {
+        url.searchParams.delete(k);
+      });
+      const next = url.pathname + (url.search ? url.search : (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "")) + url.hash;
+      window.history.replaceState(window.history.state, "", next);
+    } catch (_) {}
+  }
+
+  async function lookupPaymentCode(txRef, status = "successful", transactionId = "", attempt = 0) {
+    cancelPaymentLookup();
+
+    if (!txRef) {
+      setPaymentReturn({
+        visible: true,
+        status,
+        txRef: "",
+        transactionId,
+        code: "",
+        tier: "",
+        loading: false,
+        error: "Missing transaction reference.",
+        redeeming: false
+      });
+      return;
+    }
+
+    setPaymentReturn(prev => ({
+      ...prev,
+      visible: true,
+      status,
+      txRef,
+      transactionId,
+      loading: true,
+      error: "",
+      code: attempt === 0 ? "" : prev.code,
+      tier: attempt === 0 ? "" : prev.tier,
+      redeeming: false
+    }));
+
+    try {
+      const res = await fetch(`/api/get-code?reference=${encodeURIComponent(txRef)}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.code) {
+        setPaymentReturn(prev => ({
+          ...prev,
+          visible: true,
+          status,
+          txRef,
+          transactionId,
+          code: data.code,
+          tier: data.tier || "",
+          loading: false,
+          error: "",
+          redeeming: false
+        }));
+        return;
+      }
+
+      if (res.status === 404 && attempt < 14) {
+        paymentLookupTimerRef.current = setTimeout(() => {
+          lookupPaymentCode(txRef, status, transactionId, attempt + 1);
+        }, 2500);
+        return;
+      }
+
+      setPaymentReturn(prev => ({
+        ...prev,
+        visible: true,
+        status,
+        txRef,
+        transactionId,
+        loading: false,
+        error: data.error || "The code is not ready yet. Try again in a few seconds.",
+        redeeming: false
+      }));
+    } catch (err) {
+      setPaymentReturn(prev => ({
+        ...prev,
+        visible: true,
+        status,
+        txRef,
+        transactionId,
+        loading: false,
+        error: "Could not check for your code right now. Try again shortly.",
+        redeeming: false
+      }));
+    }
+  }
+
+  async function redeemRecoveredCode() {
+    if (!paymentReturn.code || !deviceId) return;
+
+    setPaymentReturn(prev => ({ ...prev, redeeming: true, error: "" }));
+
+    try {
+      const res = await fetch("/api/redeem-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId, code: paymentReturn.code.trim().toLowerCase() })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Could not redeem code.");
+      }
+
+      clearPaymentParamsFromUrl();
+      setPaymentReturn({
+        visible: false,
+        status: "",
+        txRef: "",
+        transactionId: "",
+        code: "",
+        tier: "",
+        loading: false,
+        error: "",
+        redeeming: false
+      });
+      unlockAudio(data.tier);
+    } catch (err) {
+      setPaymentReturn(prev => ({
+        ...prev,
+        redeeming: false,
+        error: err.message || "Could not redeem code."
+      }));
+    }
+  }
+
+  function closePaymentReturn() {
+    cancelPaymentLookup();
+    clearPaymentParamsFromUrl();
+    setPaymentReturn({
+      visible: false,
+      status: "",
+      txRef: "",
+      transactionId: "",
+      code: "",
+      tier: "",
+      loading: false,
+      error: "",
+      redeeming: false
+    });
   }
 
   // Load local state and deviceId on mount, then sync with backend
@@ -1940,6 +2234,36 @@ const chapterKeyRef = useRef(null);
 
     syncWithBackend(id);
   }, []);
+
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const params = new URLSearchParams(window.location.search || "");
+    const txRef = params.get("tx_ref") || params.get("txRef") || "";
+    const status = params.get("status") || "";
+    const transactionId = params.get("transaction_id") || params.get("transactionId") || "";
+
+    if (!txRef && !status) return;
+
+    if (status && status !== "successful") {
+      setPaymentReturn({
+        visible: true,
+        status,
+        txRef,
+        transactionId,
+        code: "",
+        tier: "",
+        loading: false,
+        error: "",
+        redeeming: false
+      });
+      return;
+    }
+
+    lookupPaymentCode(txRef, status || "successful", transactionId, 0);
+
+    return () => cancelPaymentLookup();
+  }, [deviceId]);
 
   async function getAuthHeaders() {
     try {
@@ -3660,6 +3984,18 @@ function getOrBuildSentences() {
         />
       )}
 
+      {/* ── Payment fallback recovery modal — shows code after redirect if email delays ── */}
+      {paymentReturn.visible && (
+        <PaymentRecoveryModal
+          data={paymentReturn}
+          onClose={closePaymentReturn}
+          onRedeem={redeemRecoveredCode}
+          onRetry={() => lookupPaymentCode(paymentReturn.txRef, paymentReturn.status || "successful", paymentReturn.transactionId || "", 0)}
+          D={D}
+          S={S}
+        />
+      )}
+
       {/* ── Invisible 5-tap zone — tap top-right corner 5× within 1.8s to open the dev panel ── */}
       <div
         onPointerDown={(e) => {
@@ -3817,5 +4153,5 @@ function getOrBuildSentences() {
     }
   </script>
   <script src="/auth-dropin.js" defer></script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a10452a42bce54c1',t:'MTc4MjIyNjQxMg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
