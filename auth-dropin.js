@@ -63,6 +63,56 @@
         transform: translateY(-1px);
       }
 
+      html[data-renzu-auth-theme="light"] .rz-auth-button:not(.rz-auth-button-bound) {
+        background:
+          linear-gradient(180deg, rgba(255,252,244,0.96), rgba(236,226,204,0.94));
+        color: #2b1706;
+        border-color: rgba(120,75,18,0.22);
+        box-shadow:
+          0 8px 28px rgba(0,0,0,0.12),
+          0 0 18px rgba(216,163,77,0.14),
+          inset 0 1px 0 rgba(255,255,255,0.75);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-button:not(.rz-auth-button-bound):hover {
+        background:
+          linear-gradient(180deg, rgba(255,249,232,1), rgba(232,214,174,0.98));
+        border-color: rgba(138,91,24,0.34);
+        box-shadow:
+          0 10px 32px rgba(0,0,0,0.15),
+          0 0 24px rgba(216,163,77,0.22),
+          inset 0 1px 0 rgba(255,255,255,0.82);
+      }
+
+      html[data-renzu-auth-theme="dark"] .rz-auth-button:not(.rz-auth-button-bound) {
+        background:
+          radial-gradient(circle at 50% 0%, rgba(255,220,150,0.12), transparent 45%),
+          rgba(8,8,10,0.94);
+        color: #f7ead0;
+        border-color: rgba(255,220,150,0.22);
+        box-shadow:
+          0 10px 34px rgba(0,0,0,0.70),
+          0 0 24px rgba(216,163,77,0.18),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-button:not(.rz-auth-button-bound) {
+        background:
+          linear-gradient(180deg, rgba(242,223,182,0.98), rgba(207,168,91,0.96));
+        color: #2a1502;
+        border-color: rgba(95,55,9,0.30);
+        box-shadow:
+          0 8px 26px rgba(58,27,4,0.22),
+          0 0 14px rgba(139,94,26,0.16),
+          inset 0 1px 0 rgba(255,235,180,0.42);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-button:not(.rz-auth-button-bound):hover {
+        background:
+          linear-gradient(180deg, rgba(247,228,186,1), rgba(196,141,49,0.98));
+        border-color: rgba(95,55,9,0.42);
+      }
+
       .rz-auth-button-bound {
         width: 52px;
         height: 52px;
@@ -389,6 +439,71 @@
         transform: rotate(-4deg);
       }
 
+      .rz-auth-gate-watermark {
+        position: absolute;
+        right: -145px;
+        top: 20px;
+        width: min(620px, 92vw);
+        height: min(620px, 92vw);
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0.105;
+        transform: rotate(-12deg);
+        filter: drop-shadow(0 0 26px rgba(216,163,77,0.24));
+      }
+
+      .rz-auth-gate-watermark .rz-fate-spider {
+        width: 100%;
+        height: 100%;
+        filter: none;
+      }
+
+      .rz-auth-gate-watermark .rz-spider-head,
+      .rz-auth-gate-watermark .rz-spider-body,
+      .rz-auth-gate-watermark .rz-spider-mark {
+        fill: none !important;
+        stroke: rgba(255,220,150,0.72);
+        stroke-width: 1.25;
+      }
+
+      .rz-auth-gate-watermark .rz-spider-web,
+      .rz-auth-gate-watermark .rz-spider-legs {
+        stroke: rgba(255,220,150,0.72);
+        stroke-width: 1.08;
+        opacity: 1;
+      }
+
+      .rz-auth-gate-watermark .rz-spider-web {
+        stroke-width: 0.75;
+        opacity: 0.72;
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark {
+        opacity: 0.09;
+        filter: drop-shadow(0 0 18px rgba(120,75,18,0.16));
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark .rz-spider-head,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark .rz-spider-body,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark .rz-spider-mark,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark .rz-spider-web,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-watermark .rz-spider-legs {
+        stroke: rgba(80,45,8,0.75);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark {
+        opacity: 0.12;
+        filter: drop-shadow(0 0 18px rgba(75,43,8,0.16));
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark .rz-spider-head,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark .rz-spider-body,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark .rz-spider-mark,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark .rz-spider-web,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-watermark .rz-spider-legs {
+        stroke: rgba(70,38,5,0.72);
+      }
+
       .rz-auth-gate-close {
         position: absolute;
         top: 16px;
@@ -648,6 +763,39 @@
         .rz-auth-title {
           font-size: 20px;
         }
+
+        .rz-auth-gate-inner {
+          grid-template-columns: 1fr;
+        }
+
+        .rz-auth-gate-lore {
+          padding: 34px 24px 20px;
+          border-right: none;
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+
+        .rz-auth-gate-form {
+          padding: 24px;
+        }
+
+        .rz-auth-gate-watermark {
+          right: -160px;
+          top: -30px;
+          width: 520px;
+          height: 520px;
+          opacity: 0.075;
+        }
+
+        .rz-auth-gate-sigil {
+          width: 72px;
+          height: 72px;
+          margin-bottom: 18px;
+        }
+
+        .rz-auth-gate-sigil .rz-fate-spider {
+          width: 42px;
+          height: 42px;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -848,6 +996,7 @@
 
     root.innerHTML = `
       <div class="rz-auth-gate">
+        <div class="rz-auth-gate-watermark">${FATE_SPIDER_SVG}</div>
         <button class="rz-auth-gate-close" id="rz-auth-close" aria-label="Close Gate of Fate">✕</button>
         <div class="rz-auth-gate-inner">
           <div class="rz-auth-gate-lore">
