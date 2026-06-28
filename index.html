@@ -2950,7 +2950,11 @@ const chapterKeyRef = useRef(null);
     setShowProfile(false);
     setTimeout(() => {
       try {
-        document.getElementById("rz-auth-open")?.click();
+        if (window.RenZuAuth?.openGate) {
+          window.RenZuAuth.openGate();
+        } else {
+          document.getElementById("rz-auth-open")?.click();
+        }
       } catch (_) {}
     }, 60);
   }

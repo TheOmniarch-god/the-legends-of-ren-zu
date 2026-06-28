@@ -339,6 +339,265 @@
         border-top: 1px solid rgba(255,255,255,0.08);
       }
 
+      .rz-auth-gate-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 99998;
+        padding: max(18px, env(safe-area-inset-top, 18px)) 16px max(18px, env(safe-area-inset-bottom, 18px));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+        font-family: Georgia, serif;
+        background:
+          radial-gradient(circle at 50% 18%, rgba(216,163,77,0.22), transparent 32%),
+          radial-gradient(circle at 14% 80%, rgba(98,232,255,0.08), transparent 24%),
+          rgba(5,4,4,0.86);
+        backdrop-filter: blur(16px) saturate(1.15);
+        -webkit-backdrop-filter: blur(16px) saturate(1.15);
+        animation: rzGateFade 0.22s ease both;
+      }
+
+      .rz-auth-gate {
+        width: min(760px, 94vw);
+        min-height: min(620px, calc(100vh - 36px));
+        position: relative;
+        overflow: hidden;
+        border-radius: 30px;
+        border: 1px solid rgba(255,220,150,0.25);
+        background:
+          radial-gradient(circle at 50% 0%, rgba(255,220,150,0.16), transparent 30%),
+          linear-gradient(180deg, rgba(20,14,9,0.98), rgba(5,4,4,0.98));
+        color: #f7ead0;
+        box-shadow:
+          0 32px 100px rgba(0,0,0,0.72),
+          0 0 0 1px rgba(255,255,255,0.04),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        animation: rzGateRise 0.25s cubic-bezier(.2,.8,.25,1) both;
+      }
+
+      .rz-auth-gate::before {
+        content: "";
+        position: absolute;
+        inset: -18%;
+        pointer-events: none;
+        opacity: 0.38;
+        background:
+          linear-gradient(65deg, transparent 0 46%, rgba(216,163,77,0.20) 46.2% 46.6%, transparent 46.8%),
+          linear-gradient(115deg, transparent 0 52%, rgba(216,163,77,0.14) 52.2% 52.6%, transparent 52.8%),
+          radial-gradient(circle at 50% 44%, transparent 0 20%, rgba(216,163,77,0.10) 20.3% 20.8%, transparent 21.1%);
+        transform: rotate(-4deg);
+      }
+
+      .rz-auth-gate-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.18);
+        color: rgba(247,234,208,0.70);
+        cursor: pointer;
+        z-index: 4;
+      }
+
+      .rz-auth-gate-inner {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 1fr 0.92fr;
+        min-height: inherit;
+      }
+
+      .rz-auth-gate-lore {
+        padding: 44px 38px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        border-right: 1px solid rgba(255,255,255,0.07);
+      }
+
+      .rz-auth-gate-form {
+        padding: 44px 34px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background: rgba(0,0,0,0.16);
+      }
+
+      .rz-auth-gate-sigil {
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        background:
+          radial-gradient(circle at 50% 35%, rgba(255,248,225,0.30), rgba(216,163,77,0.13) 46%, rgba(0,0,0,0.20) 100%);
+        border: 1px solid rgba(255,220,150,0.38);
+        box-shadow: 0 0 44px rgba(216,163,77,0.23), inset 0 1px 0 rgba(255,255,255,0.13);
+      }
+
+      .rz-auth-gate-sigil .rz-fate-spider {
+        width: 52px;
+        height: 52px;
+      }
+
+      .rz-auth-gate-kicker {
+        font-size: 10px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(255,230,180,0.56);
+        margin-bottom: 12px;
+      }
+
+      .rz-auth-gate-title {
+        font-size: clamp(32px, 6vw, 56px);
+        line-height: 0.98;
+        font-weight: 800;
+        color: #fff4d6;
+        text-shadow: 0 0 26px rgba(216,163,77,0.20);
+        margin-bottom: 20px;
+      }
+
+      .rz-auth-gate-copy {
+        font-size: 15px;
+        line-height: 1.8;
+        color: rgba(247,234,208,0.72);
+        max-width: 38em;
+      }
+
+      .rz-auth-gate-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 24px;
+      }
+
+      .rz-auth-gate-pill {
+        border: 1px solid rgba(255,220,150,0.18);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(247,234,208,0.64);
+        background: rgba(255,220,150,0.06);
+      }
+
+      .rz-auth-gate-form-title {
+        font-size: 20px;
+        color: #fff4d6;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .rz-auth-gate-form-note {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(247,234,208,0.64);
+        margin-bottom: 18px;
+      }
+
+      @keyframes rzGateFade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes rzGateRise {
+        from { opacity: 0; transform: translateY(18px) scale(0.985); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-backdrop {
+        background:
+          radial-gradient(circle at 50% 18%, rgba(216,163,77,0.18), transparent 32%),
+          rgba(246,242,234,0.78);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate {
+        background:
+          radial-gradient(circle at 50% 0%, rgba(216,163,77,0.16), transparent 32%),
+          linear-gradient(180deg, rgba(255,252,244,0.98), rgba(236,226,204,0.98));
+        color: #211407;
+        border-color: rgba(120,75,18,0.22);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-title,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-form-title {
+        color: #2b1706;
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-copy,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-form-note {
+        color: rgba(35,22,9,0.70);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-kicker,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-pill {
+        color: rgba(75,46,12,0.72);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-form {
+        background: rgba(70,40,8,0.045);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-lore {
+        border-right-color: rgba(80,50,12,0.10);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate-close {
+        color: rgba(35,22,9,0.65);
+        background: rgba(255,255,255,0.34);
+        border-color: rgba(80,50,12,0.12);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-backdrop {
+        background:
+          radial-gradient(circle at 50% 18%, rgba(120,72,12,0.18), transparent 34%),
+          rgba(210,174,98,0.76);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate {
+        background:
+          radial-gradient(circle at 50% 0%, rgba(95,55,9,0.12), transparent 32%),
+          linear-gradient(180deg, rgba(241,220,170,0.98), rgba(207,168,91,0.98));
+        color: #2a1502;
+        border-color: rgba(95,55,9,0.30);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-title,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-form-title {
+        color: #2a1502;
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-copy,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-form-note {
+        color: rgba(42,21,2,0.72);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-kicker,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-pill {
+        color: rgba(75,43,8,0.78);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-form {
+        background: rgba(90,50,8,0.07);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-lore {
+        border-right-color: rgba(80,45,8,0.14);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate-close {
+        color: rgba(42,21,2,0.68);
+        background: rgba(255,240,200,0.24);
+        border-color: rgba(80,45,8,0.16);
+      }
+
       @media (max-width: 640px) {
         .rz-auth-root {
           right: 12px;
@@ -579,8 +838,110 @@
     }
   }
 
+  function openGate() {
+    closeModal();
+    updateRenzuTheme();
+
+    const root = document.createElement("div");
+    root.id = MODAL_ID;
+    root.className = "rz-auth-gate-backdrop";
+
+    root.innerHTML = `
+      <div class="rz-auth-gate">
+        <button class="rz-auth-gate-close" id="rz-auth-close" aria-label="Close Gate of Fate">✕</button>
+        <div class="rz-auth-gate-inner">
+          <div class="rz-auth-gate-lore">
+            <div class="rz-auth-gate-sigil">${FATE_SPIDER_SVG}</div>
+            <div class="rz-auth-gate-kicker">The Legends of Ren Zu</div>
+            <div class="rz-auth-gate-title">Gate of Fate</div>
+            <div class="rz-auth-gate-copy">
+              Bind your soul mark to The Omniarch. Your realm, essence, Gu collection, bookmarks, and progress will follow you across devices.
+            </div>
+            <div class="rz-auth-gate-pills">
+              <span class="rz-auth-gate-pill">No password</span>
+              <span class="rz-auth-gate-pill">Sacred code</span>
+              <span class="rz-auth-gate-pill">Realm sync</span>
+              <span class="rz-auth-gate-pill">Fate web bound</span>
+            </div>
+          </div>
+
+          <div class="rz-auth-gate-form">
+            <div class="rz-auth-gate-form-title">Open the Archive</div>
+            <div class="rz-auth-gate-form-note">
+              Enter your email. The Omniarch will send a sacred code to complete the binding.
+            </div>
+
+            <input class="rz-auth-input" id="rz-auth-email" type="email" placeholder="you@example.com" />
+
+            <div class="rz-auth-actions">
+              <button class="rz-auth-secondary" id="rz-auth-close-secondary">Cancel</button>
+              <button class="rz-auth-primary" id="rz-auth-send">Send code</button>
+            </div>
+
+            <div class="rz-auth-code-wrap" id="rz-auth-code-wrap">
+              <input class="rz-auth-input" id="rz-auth-code" type="text" inputmode="numeric" maxlength="8" placeholder="Enter sacred code" />
+
+              <div class="rz-auth-actions">
+                <button class="rz-auth-secondary" id="rz-auth-resend">Resend</button>
+                <button class="rz-auth-primary" id="rz-auth-verify">Bind Soul Mark</button>
+              </div>
+            </div>
+
+            <div class="rz-auth-status" id="rz-auth-status"></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(root);
+    bindAuthFormEvents();
+  }
+
+  function bindAuthFormEvents() {
+    const closeBtn = document.getElementById("rz-auth-close");
+    const closeBtn2 = document.getElementById("rz-auth-close-secondary");
+
+    if (closeBtn) closeBtn.onclick = closeModal;
+    if (closeBtn2) closeBtn2.onclick = closeModal;
+
+    const signoutBtn = document.getElementById("rz-auth-signout");
+    if (signoutBtn) signoutBtn.onclick = signOut;
+
+    const sendBtn = document.getElementById("rz-auth-send");
+    if (sendBtn) sendBtn.onclick = sendLoginCode;
+
+    const resendBtn = document.getElementById("rz-auth-resend");
+    if (resendBtn) resendBtn.onclick = sendLoginCode;
+
+    const verifyBtn = document.getElementById("rz-auth-verify");
+    if (verifyBtn) verifyBtn.onclick = verifyLoginCode;
+
+    const codeInput = document.getElementById("rz-auth-code");
+    if (codeInput) {
+      codeInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") verifyLoginCode();
+      });
+    }
+
+    const emailInput = document.getElementById("rz-auth-email");
+    if (emailInput) {
+      emailInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") sendLoginCode();
+      });
+
+      setTimeout(() => {
+        try { emailInput.focus(); } catch (_) {}
+      }, 50);
+    }
+  }
+
   function openModal() {
     closeModal();
+
+    if (!currentUser) {
+      openGate();
+      return;
+    }
 
     const root = document.createElement("div");
     root.id = MODAL_ID;
@@ -651,62 +1012,7 @@
     `;
 
     document.body.appendChild(root);
-
-    const closeBtn = document.getElementById("rz-auth-close");
-
-    if (closeBtn) {
-      closeBtn.onclick = closeModal;
-    }
-
-    const signoutBtn = document.getElementById("rz-auth-signout");
-
-    if (signoutBtn) {
-      signoutBtn.onclick = signOut;
-    }
-
-    const sendBtn = document.getElementById("rz-auth-send");
-
-    if (sendBtn) {
-      sendBtn.onclick = sendLoginCode;
-    }
-
-    const resendBtn = document.getElementById("rz-auth-resend");
-
-    if (resendBtn) {
-      resendBtn.onclick = sendLoginCode;
-    }
-
-    const verifyBtn = document.getElementById("rz-auth-verify");
-
-    if (verifyBtn) {
-      verifyBtn.onclick = verifyLoginCode;
-    }
-
-    const codeInput = document.getElementById("rz-auth-code");
-
-    if (codeInput) {
-      codeInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          verifyLoginCode();
-        }
-      });
-    }
-
-    const emailInput = document.getElementById("rz-auth-email");
-
-    if (emailInput) {
-      emailInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          sendLoginCode();
-        }
-      });
-
-      setTimeout(() => {
-        try {
-          emailInput.focus();
-        } catch (_) {}
-      }, 50);
-    }
+    bindAuthFormEvents();
   }
 
   function setStatus(text) {
@@ -899,6 +1205,8 @@
     getUser: function () {
       return currentUser;
     },
+
+    openGate,
 
     getAccessToken: async function () {
       await initSupabase();
