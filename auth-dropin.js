@@ -335,6 +335,14 @@
         cursor: pointer;
         border: 1px solid rgba(255,255,255,0.12);
         font-family: Georgia, serif;
+        font-weight: 600;
+      }
+
+      .rz-auth-primary:disabled,
+      .rz-auth-secondary:disabled {
+        cursor: not-allowed;
+        opacity: 0.62;
+        transform: none !important;
       }
 
       .rz-auth-primary {
@@ -345,6 +353,15 @@
 
       .rz-auth-primary:hover {
         background: rgba(255,220,150,0.24);
+      }
+
+      .rz-auth-primary:disabled,
+      .rz-auth-primary:disabled:hover {
+        background: rgba(255,220,150,0.07);
+        color: rgba(247,234,208,0.42);
+        border-color: rgba(255,255,255,0.08);
+        box-shadow: none;
+        font-weight: 500;
       }
 
       .rz-auth-secondary {
@@ -673,11 +690,25 @@
         color: #fff4d6;
         border-color: rgba(58,33,9,0.45);
         box-shadow: 0 8px 22px rgba(58,33,9,0.18), inset 0 1px 0 rgba(255,255,255,0.10);
+        font-weight: 700;
       }
 
       html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-primary:hover {
         background: linear-gradient(180deg, #4a2b0d, #2a1706);
         box-shadow: 0 10px 28px rgba(58,33,9,0.24), 0 0 18px rgba(216,163,77,0.18), inset 0 1px 0 rgba(255,255,255,0.12);
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-primary:disabled,
+      html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-primary:disabled:hover {
+        background: rgba(74,43,13,0.12);
+        color: rgba(43,23,6,0.42);
+        border-color: rgba(80,50,12,0.12);
+        box-shadow: none;
+        font-weight: 500;
+      }
+
+      html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-status {
+        color: rgba(43,23,6,0.62);
       }
 
       html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-secondary {
@@ -689,6 +720,10 @@
       html[data-renzu-auth-theme="light"] .rz-auth-gate .rz-auth-secondary:hover {
         background: rgba(255,246,222,0.76);
         color: #2b1706;
+      }
+
+      html[data-renzu-auth-theme="dark"] .rz-auth-gate .rz-auth-status {
+        color: rgba(255,230,180,0.72);
       }
 
       html[data-renzu-auth-theme="scroll"] .rz-auth-gate-backdrop {
@@ -743,6 +778,19 @@
 
       html[data-renzu-auth-theme="scroll"] .rz-auth-gate .rz-auth-primary:hover {
         background: linear-gradient(180deg, #7b5018, #4a2b0b);
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate .rz-auth-primary:disabled,
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate .rz-auth-primary:disabled:hover {
+        background: rgba(80,45,8,0.12);
+        color: rgba(42,21,2,0.42);
+        border-color: rgba(80,45,8,0.12);
+        box-shadow: none;
+        font-weight: 500;
+      }
+
+      html[data-renzu-auth-theme="scroll"] .rz-auth-gate .rz-auth-status {
+        color: rgba(42,21,2,0.66);
       }
 
       html[data-renzu-auth-theme="scroll"] .rz-auth-gate .rz-auth-secondary {
@@ -1063,7 +1111,7 @@
 
             <div class="rz-auth-actions">
               <button class="rz-auth-secondary" id="rz-auth-close-secondary">Cancel</button>
-              <button class="rz-auth-primary" id="rz-auth-send">Send code</button>
+              <button class="rz-auth-primary" id="rz-auth-send" disabled>Send code</button>
             </div>
 
             <div class="rz-auth-code-wrap" id="rz-auth-code-wrap">
@@ -1083,6 +1131,16 @@
 
     document.body.appendChild(root);
     bindAuthFormEvents();
+  }
+
+  function updateSendButtonState() {
+    const emailInput = document.getElementById("rz-auth-email");
+    const sendBtn = document.getElementById("rz-auth-send");
+
+    if (!sendBtn) return;
+
+    const hasText = !!(emailInput && emailInput.value.trim());
+    sendBtn.disabled = !hasText;
   }
 
   function bindAuthFormEvents() {
@@ -1113,12 +1171,17 @@
 
     const emailInput = document.getElementById("rz-auth-email");
     if (emailInput) {
+      emailInput.addEventListener("input", updateSendButtonState);
+
       emailInput.addEventListener("keydown", function (e) {
         if (e.key === "Enter") sendLoginCode();
       });
 
+      updateSendButtonState();
+
       setTimeout(() => {
         try { emailInput.focus(); } catch (_) {}
+        updateSendButtonState();
       }, 50);
     }
   }
@@ -1180,7 +1243,7 @@
 
                 <div class="rz-auth-actions">
                   <button class="rz-auth-secondary" id="rz-auth-close">Cancel</button>
-                  <button class="rz-auth-primary" id="rz-auth-send">Send code</button>
+                  <button class="rz-auth-primary" id="rz-auth-send" disabled>Send code</button>
                 </div>
 
                 <div class="rz-auth-code-wrap" id="rz-auth-code-wrap">
