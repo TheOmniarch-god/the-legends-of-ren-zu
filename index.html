@@ -2721,6 +2721,37 @@ const chapterKeyRef = useRef(null);
     }
   }
 
+  function openGateOfFate() {
+    try {
+      if (window.RenZuAuth?.openGate) {
+        window.RenZuAuth.openGate();
+        return;
+      }
+
+      document.getElementById("rz-auth-open")?.click();
+    } catch (_) {}
+  }
+
+  function isSoulBound() {
+    try {
+      return !!window.RenZuAuth?.getUser?.();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function requireSoulBound() {
+    if (isSoulBound()) return true;
+
+    openGateOfFate();
+    return false;
+  }
+
+  function openTreasureYellowHeaven() {
+    if (!requireSoulBound()) return;
+    setShowTreasure(true);
+  }
+
   async function deductEssence(type) {
     resetDailyIfNeeded();
     if (!deviceId) return false;
@@ -2752,7 +2783,7 @@ const chapterKeyRef = useRef(null);
         }
         if (res.status === 402) {
           setEssenceLoading(false);
-          setShowTreasure(true);
+          openTreasureYellowHeaven();
           return false;
         }
         throw new Error(data.error);
@@ -2808,7 +2839,7 @@ const chapterKeyRef = useRef(null);
       }
     }
     setEssenceLoading(false);
-    setShowTreasure(true);
+    openTreasureYellowHeaven();
     return false;
   }
 
@@ -3886,7 +3917,7 @@ function getOrBuildSentences() {
                   onHome={goHome}
                   onContinue={continueReading}
                   onProfile={() => setShowProfile(true)}
-                  onTreasure={() => setShowTreasure(true)}
+                  onTreasure={() => openTreasureYellowHeaven()}
                   onCodex={() => setShowCodex(true)}
                   hasContinue={!!continueChapter}
                 />
@@ -4017,8 +4048,8 @@ function getOrBuildSentences() {
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setShowTreasure(true)}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setShowTreasure(true); }}
+                  onClick={() => openTreasureYellowHeaven()}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") openTreasureYellowHeaven(); }}
                   title={`${essenceStatus()} · Open Treasure Yellow Heaven`}
                   style={{
                   display: "flex", alignItems: "center", gap: 8,
