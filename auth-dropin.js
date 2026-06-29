@@ -426,8 +426,9 @@
       }
 
       .rz-auth-gate {
-        width: min(760px, 94vw);
-        min-height: min(620px, calc(100vh - 36px));
+        width: min(720px, 94vw);
+        min-height: min(560px, calc(100vh - 42px));
+        max-height: calc(100vh - 34px);
         position: relative;
         overflow: hidden;
         border-radius: 30px;
@@ -854,14 +855,29 @@
           grid-template-columns: 1fr;
         }
 
+        .rz-auth-gate {
+          width: calc(100vw - 26px);
+          max-height: calc(100dvh - 34px);
+          border-radius: 24px;
+        }
+
         .rz-auth-gate-lore {
-          padding: 34px 24px 20px;
+          padding: 26px 22px 16px;
           border-right: none;
           border-bottom: 1px solid rgba(255,255,255,0.07);
         }
 
         .rz-auth-gate-form {
-          padding: 24px;
+          padding: 20px 22px 22px;
+        }
+
+        .rz-auth-gate-copy {
+          font-size: 13.5px;
+          line-height: 1.65;
+        }
+
+        .rz-auth-gate-pills {
+          margin-top: 16px;
         }
 
         .rz-auth-gate-watermark {
@@ -882,6 +898,10 @@
         .rz-auth-gate-sigil .rz-fate-spider {
           width: 42px;
           height: 42px;
+        }
+
+        .rz-auth-gate-title {
+          font-size: clamp(30px, 12vw, 42px);
         }
       }
     `;
@@ -1436,14 +1456,22 @@
       <button
         class="rz-auth-button ${isBound ? "rz-auth-button-bound" : ""}"
         id="rz-auth-open"
-        aria-label="${isBound ? "Soul Bound account" : "Login"}"
-        title="${isBound ? "Soul Bound" : "Login"}"
+        aria-label="${isBound ? "Open bound profile" : "Login"}"
+        title="${isBound ? "Open Profile" : "Login"}"
       >
         ${isBound ? FATE_SPIDER_SVG : "Login"}
       </button>
     `;
 
-    document.getElementById("rz-auth-open").onclick = toggleModal;
+    const openBtn = document.getElementById("rz-auth-open");
+
+    if (isBound) {
+      openBtn.onclick = () => {
+        window.dispatchEvent(new CustomEvent("renzu-open-profile"));
+      };
+    } else {
+      openBtn.onclick = openGate;
+    }
   }
 
   window.RenZuAuth = {

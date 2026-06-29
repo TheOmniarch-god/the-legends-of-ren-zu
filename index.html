@@ -489,13 +489,25 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S, getAuth
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [cryptoPlan, setCryptoPlan] = useState("gu_master");
+  const [cryptoHash, setCryptoHash] = useState("");
+  const [cryptoLoading, setCryptoLoading] = useState(false);
+  const [cryptoMsg, setCryptoMsg] = useState("");
+  const [cryptoErr, setCryptoErr] = useState("");
   if (!open) return null;
 
   const border = D ? "rgba(255,255,255,0.10)" : S ? "rgba(180,130,40,0.40)" : "rgba(0,0,0,0.12)";
+  const borderStrong = D ? "rgba(255,220,150,0.28)" : S ? "rgba(120,80,20,0.58)" : "rgba(0,0,0,0.24)";
   const surface = D ? "rgba(8,8,10,0.96)" : S ? "rgba(245,230,200,0.96)" : "rgba(255,255,255,0.98)";
   const text = D ? "#dddbd5" : S ? "#2a1502" : "#0d0c09";
   const textDim = D ? "#9a9890" : S ? "#7a4e18" : "#6a6660";
   const headFont = "Metamorphous, 'Palatino Linotype', Georgia, serif";
+  const USDT_TRC20_ADDRESS = "TBnjQq7kCuF3NBYMQcniF2pzVVLfEnMmEU";
+  const CRYPTO_PLANS = {
+    gu_master: { label: "Gu Master", amount: "5 USDT" },
+    gu_immortal: { label: "Gu Immortal", amount: "10 USDT" },
+    venerable: { label: "Venerable", amount: "30 USDT" },
+  };
 
   async function tryUnlock() {
     const clean = code.trim().toLowerCase();
@@ -538,10 +550,55 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S, getAuth
   }
 
   function copyCrypto() {
-    navigator.clipboard?.writeText("YOUR_USDT_TRC20_ADDRESS").then(() => {
+    navigator.clipboard?.writeText(USDT_TRC20_ADDRESS).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
+  }
+
+  async function verifyCryptoPayment() {
+    const txHash = cryptoHash.trim();
+
+    setCryptoErr("");
+    setCryptoMsg("");
+
+    if (!txHash) {
+      setCryptoErr("Paste your TRON transaction hash first.");
+      return;
+    }
+
+    setCryptoLoading(true);
+
+    try {
+      const authHeaders = getAuthHeaders ? await getAuthHeaders() : {};
+
+      const res = await fetch("/api/verify-crypto-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders
+        },
+        body: JSON.stringify({
+          deviceId,
+          plan: cryptoPlan,
+          txHash
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Could not verify this transaction.");
+      }
+
+      setCryptoMsg("On-chain offering verified. Realm ascension complete.");
+      setCryptoHash("");
+      onUnlock(data.tier || cryptoPlan);
+    } catch (err) {
+      setCryptoErr(err.message || "Could not verify this transaction yet.");
+    } finally {
+      setCryptoLoading(false);
+    }
   }
 
   const REALM_SIGILS = {
@@ -644,7 +701,7 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S, getAuth
           Treasure Yellow Heaven
         </div>
         <div style={{ fontSize: 13, color: textDim, lineHeight: 1.55, marginBottom: 20, fontFamily: "'IM Fell English', Georgia, serif" }}>
-          Your primeval aperture is dry. The heavens demand a toll. Trade essence stones to continue your cultivation, lest you stagnate on the mortal path.
+          Ascend, redeem a realm token, or make an offering. Treasure Yellow Heaven is open only to soul-bound cultivators so every realm follows your account across devices.
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
@@ -690,8 +747,96 @@ function TreasureYellowHeaven({ open, onClose, onUnlock, deviceId, D, S, getAuth
               padding: "11px 22px", borderRadius: 14, border: `1px solid ${border}`,
               background: "transparent", color: text, fontFamily: headFont, fontSize: 12, cursor: "pointer",
             }}>
-            {copied ? "✓ USDT (TRC-20) copied" : "₿ Copy USDT (TRC-20) Address"}
+            {copied ? "✓ USDT TRC-20 address copied" : "₮ Copy USDT TRC-20 Address"}
           </button>
+          <div style={{
+            marginTop: -2,
+            padding: "8px 10px",
+            borderRadius: 12,
+            border: `1px dashed ${border}`,
+            color: textDim,
+            fontSize: 10.5,
+            lineHeight: 1.45,
+            wordBreak: "break-all",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            background: D ? "rgba(255,255,255,0.025)" : S ? "rgba(139,94,26,0.06)" : "rgba(0,0,0,0.025)",
+          }}>
+            USDT TRC-20 · {USDT_TRC20_ADDRESS}
+          </div>
+
+          <div style={{
+            padding: "12px 12px 13px",
+            borderRadius: 16,
+            border: `1px solid ${border}`,
+            background: D ? "rgba(255,255,255,0.035)" : S ? "rgba(139,94,26,0.075)" : "rgba(0,0,0,0.025)",
+            textAlign: "left",
+          }}>
+            <div style={{ fontFamily: headFont, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: textDim, marginBottom: 8 }}>
+              On-chain Offering · Auto Verify
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
+              {Object.entries(CRYPTO_PLANS).map(([key, plan]) => {
+                const active = cryptoPlan === key;
+                return (
+                  <button key={key} onClick={() => { setCryptoPlan(key); setCryptoErr(""); setCryptoMsg(""); }} style={{
+                    padding: "8px 6px",
+                    borderRadius: 10,
+                    border: `1px solid ${active ? borderStrong || border : border}`,
+                    background: active
+                      ? (D ? "rgba(216,163,77,0.16)" : S ? "rgba(139,94,26,0.20)" : "rgba(0,0,0,0.075)")
+                      : "transparent",
+                    color: text,
+                    cursor: "pointer",
+                    fontFamily: headFont,
+                    fontSize: 9.5,
+                    lineHeight: 1.35,
+                  }}>
+                    <div>{plan.label}</div>
+                    <div style={{ color: textDim, fontFamily: "Georgia, serif", fontSize: 10, marginTop: 2 }}>{plan.amount}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10.5, color: textDim, lineHeight: 1.55, marginBottom: 8 }}>
+              Send the exact USDT amount on TRON (TRC-20), then paste the transaction hash below. Verification is automatic.
+            </div>
+            <input
+              value={cryptoHash}
+              onChange={e => { setCryptoHash(e.target.value); setCryptoErr(""); setCryptoMsg(""); }}
+              placeholder="Paste TRON transaction hash"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "10px 12px",
+                borderRadius: 12,
+                fontSize: 12,
+                background: D ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                border: `1px solid ${cryptoErr ? "tomato" : border}`,
+                color: text,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                outline: "none",
+                marginBottom: 8,
+              }}
+            />
+            <button onClick={verifyCryptoPayment} disabled={cryptoLoading || !cryptoHash.trim()} style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: `1px solid ${border}`,
+              background: cryptoLoading || !cryptoHash.trim()
+                ? (D ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)")
+                : (D ? "rgba(216,163,77,0.16)" : S ? "rgba(139,94,26,0.22)" : "rgba(0,0,0,0.10)"),
+              color: cryptoLoading || !cryptoHash.trim() ? textDim : text,
+              cursor: cryptoLoading || !cryptoHash.trim() ? "not-allowed" : "pointer",
+              fontFamily: headFont,
+              fontSize: 11.5,
+              fontWeight: 600,
+            }}>
+              {cryptoLoading ? "Verifying on-chain…" : "Verify Offering"}
+            </button>
+            {cryptoErr && <div style={{ fontSize: 10.5, color: "tomato", marginTop: 7, lineHeight: 1.45 }}>{cryptoErr}</div>}
+            {cryptoMsg && <div style={{ fontSize: 10.5, color: D ? "#d8f0d8" : "#355b1f", marginTop: 7, lineHeight: 1.45 }}>{cryptoMsg}</div>}
+          </div>
         </div>
 
         <div style={{ height: 1, background: border, margin: "8px 0 14px" }} />
@@ -913,7 +1058,7 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
   const textDim = D ? "#9a9890" : S ? "#7a4e18" : "#6a6660";
   const headFont = "Metamorphous, 'Palatino Linotype', Georgia, serif";
   const isEmailBound = accountMode === "email";
-  const displayName = (editName || username || "Nameless Cultivator").trim() || "Nameless Cultivator";
+  const displayName = (editName || username || "Reader").trim() || "Reader";
   const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -939,7 +1084,8 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
     setSaveMsg("");
     try {
       await onSave({ username: editName, email: editEmail });
-      setSaveMsg(isEmailBound ? "Profile bound to your email account." : "Identity saved on this device.");
+      setSaveMsg(isEmailBound ? "Profile updated." : "Profile saved on this device.");
+      setManageOpen(false);
     } catch (err) {
       setSaveErr(err?.message || "Could not save your identity.");
     } finally {
@@ -995,7 +1141,7 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
           <div style={{ fontFamily: headFont, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{displayName}</div>
           <div style={{ fontSize: 11, color: textDim, marginBottom: 10, fontFamily: "'IM Fell English', Georgia, serif" }}>{tierName}</div>
           <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-            <StatPill>{isEmailBound ? "Soul Bound" : "Device Bound"}</StatPill>
+            <StatPill>{isEmailBound ? "Signed In" : "Guest"}</StatPill>
             <StatPill>{readCount}/{totalEntries} opened</StatPill>
             <StatPill>{codexCount}/{totalGu} codex</StatPill>
           </div>
@@ -1006,8 +1152,8 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
             <div style={{ fontFamily: headFont, fontSize: 9, color: textDim, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 8 }}>Account State</div>
             <div style={{ fontSize: 12.5, color: text, lineHeight: 1.7, fontFamily: "'IM Fell English', Georgia, serif" }}>
               {isEmailBound
-                ? `This reader is bound to ${email || "your email account"}. Your realm, credits, and collection can follow you across devices.`
-                : "This reader currently lives only on this device. Bind an email account so your realm and purchases can follow you anywhere."}
+                ? `Signed in as ${email || "your email account"}. Your realm, credits, codex, and collection can follow you across devices.`
+                : "You are using this app as a guest on this device. Sign in with email so purchases and progress can follow your account."}
             </div>
             <div style={{ fontSize: 10, color: textDim, marginTop: 8, lineHeight: 1.55 }}>{essenceStatus()}</div>
           </div>
@@ -1045,24 +1191,26 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
 
           <div style={{ padding: "16px 16px 14px", borderRadius: 18, border: `1px solid ${border}`, background: cardBg }}>
             <button onClick={() => setManageOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", color: text, cursor: "pointer", padding: 0, fontFamily: headFont, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-              <span>Manage Identity</span>
-              <span style={{ color: textDim }}>{manageOpen ? "▲" : "▼"}</span>
+              <span>Account Details</span>
+              <span style={{ color: textDim, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {manageOpen ? "▲" : "✎ Edit"}
+              </span>
             </button>
 
             {manageOpen && (
               <div style={{ marginTop: 12 }}>
-                <label style={{ display: "block", fontSize: 10, color: textDim, marginBottom: 5, fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.08em" }}>Cultivator Name</label>
-                <input value={editName} onChange={e => { setEditName(e.target.value); setSaveErr(""); setSaveMsg(""); }} placeholder="Your name" style={{ width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 13, background: D ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: `1px solid ${border}`, color: text, fontFamily: "inherit", outline: "none", marginBottom: 12 }} />
-                <label style={{ display: "block", fontSize: 10, color: textDim, marginBottom: 5, fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.08em" }}>{isEmailBound ? "Bound Email" : "Recovery Email"}</label>
+                <label style={{ display: "block", fontSize: 10, color: textDim, marginBottom: 5, fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.08em" }}>Display Name</label>
+                <input value={editName} onChange={e => { setEditName(e.target.value); setSaveErr(""); setSaveMsg(""); }} placeholder="Your display name" style={{ width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 13, background: D ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: `1px solid ${border}`, color: text, fontFamily: "inherit", outline: "none", marginBottom: 12 }} />
+                <label style={{ display: "block", fontSize: 10, color: textDim, marginBottom: 5, fontFamily: headFont, textTransform: "uppercase", letterSpacing: "0.08em" }}>Email</label>
                 <input value={editEmail} disabled={isEmailBound} onChange={e => { setEditEmail(e.target.value); setSaveErr(""); setSaveMsg(""); }} placeholder={isEmailBound ? "Managed by login" : "your@email.com"} style={{ width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 13, background: isEmailBound ? (D ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)") : (D ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"), border: `1px solid ${border}`, color: text, fontFamily: "inherit", outline: "none", opacity: isEmailBound ? 0.75 : 1 }} />
-                <div style={{ fontSize: 10, color: textDim, marginTop: 7, lineHeight: 1.5 }}>{isEmailBound ? "This email comes from your signed-in account and acts as your canonical recovery identity." : "Optional for now. True cross-device recovery becomes active when you bind the reader to an email account."}</div>
+                <div style={{ fontSize: 10, color: textDim, marginTop: 7, lineHeight: 1.5 }}>{isEmailBound ? "This email comes from your signed-in account." : "Optional for guests. Sign in with email to sync across devices."}</div>
                 {(saveMsg || saveErr) && <div style={{ marginTop: 10, fontSize: 11, color: saveErr ? "tomato" : (D ? "#d8f0d8" : "#355b1f"), lineHeight: 1.5 }}>{saveErr || saveMsg}</div>}
                 <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-                  <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.20)" : "rgba(0,0,0,0.08)", border: `1px solid ${border}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Identity"}</button>
+                  <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.20)" : "rgba(0,0,0,0.08)", border: `1px solid ${border}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Changes"}</button>
                   {!isEmailBound ? (
-                    <button onClick={onBindAccount} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${borderStrong}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Bind With Email Account</button>
+                    <button onClick={onBindAccount} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${borderStrong}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign in with Email</button>
                   ) : (
-                    <button onClick={onSignOut} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign Out Of Soul Bound Account</button>
+                    <button onClick={onSignOut} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
                   )}
                   <button onClick={copyDeviceId} style={{ width: "100%", padding: "10px 16px", borderRadius: 12, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 11, cursor: "pointer" }}>Copy Device ID</button>
                 </div>
@@ -1146,7 +1294,7 @@ function NavigationMenu({ open, onToggle, onClose, D, S, onHome, onContinue, onP
   const textDim = D ? "#9d998f" : S ? "#7a4e18" : "#706b64";
 
   const menuItems = [
-    { id: "profile", label: "Profile", note: "Realm and identity", onClick: () => { onClose(); onProfile(); }, disabled: false },
+    { id: "profile", label: "Profile", note: "Account and realm", onClick: () => { onClose(); onProfile(); }, disabled: false },
     { id: "treasure", label: "Treasure Yellow Heaven", note: "Ascend or redeem realm tokens", onClick: () => { onClose(); onTreasure(); }, disabled: false },
     { id: "codex", label: "Codex", note: "Gu gallery and lore", onClick: () => { onClose(); onCodex(); }, disabled: false },
     { id: "home", label: "Home", note: "Return to archive", onClick: () => { onClose(); onHome(); }, disabled: false },
@@ -2246,6 +2394,7 @@ const chapterKeyRef = useRef(null);
   const customRef = useRef(null);
   const topRef   = useRef(null);
   const paymentLookupTimerRef = useRef(null);
+  const pendingTreasureAfterLoginRef = useRef(false);
 
   // ── Cultivation billing / essence helpers ────────────────────────────
   const DAILY_CHAT_LIMIT = 3;
@@ -2639,14 +2788,25 @@ const chapterKeyRef = useRef(null);
 
   // When the email account changes, reload realm/essence from the account profile.
   useEffect(() => {
-    function onAuthChange() {
+    function onAuthChange(e) {
       if (deviceId) syncWithBackend(deviceId);
+
+      if (e?.detail?.user && pendingTreasureAfterLoginRef.current) {
+        pendingTreasureAfterLoginRef.current = false;
+        setTimeout(() => setShowTreasure(true), 160);
+      }
+    }
+
+    function onOpenProfile() {
+      setShowProfile(true);
     }
 
     window.addEventListener("renzu-auth-change", onAuthChange);
+    window.addEventListener("renzu-open-profile", onOpenProfile);
 
     return () => {
       window.removeEventListener("renzu-auth-change", onAuthChange);
+      window.removeEventListener("renzu-open-profile", onOpenProfile);
     };
   }, [deviceId]);
 
@@ -2748,7 +2908,12 @@ const chapterKeyRef = useRef(null);
   }
 
   function openTreasureYellowHeaven() {
-    if (!requireSoulBound()) return;
+    if (!isSoulBound()) {
+      pendingTreasureAfterLoginRef.current = true;
+      openGateOfFate();
+      return;
+    }
+
     setShowTreasure(true);
   }
 
