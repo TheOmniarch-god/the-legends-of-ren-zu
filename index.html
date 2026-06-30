@@ -1265,15 +1265,22 @@ function ProfileModal({ open, onClose, D, S, deviceId, username, email, tier, ti
                 {(saveMsg || saveErr) && <div style={{ marginTop: 10, fontSize: 11, color: saveErr ? "tomato" : (D ? "#d8f0d8" : "#355b1f"), lineHeight: 1.5 }}>{saveErr || saveMsg}</div>}
                 <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
                   <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.20)" : "rgba(0,0,0,0.08)", border: `1px solid ${border}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Changes"}</button>
-                  {!isEmailBound ? (
-                    <button onClick={onBindAccount} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${borderStrong}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign in with Email</button>
-                  ) : (
-                    <button onClick={onSignOut} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
-                  )}
-                  <button onClick={copyDeviceId} style={{ width: "100%", padding: "10px 16px", borderRadius: 12, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 11, cursor: "pointer" }}>Copy Device ID</button>
                 </div>
               </div>
             )}
+          </div>
+
+          <div style={{ padding: "16px 16px 14px", borderRadius: 18, border: `1px solid ${border}`, background: cardBg }}>
+            <div style={{ fontFamily: headFont, fontSize: 9, color: textDim, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 8 }}>Account Access</div>
+            <div style={{ fontSize: 12.5, color: text, lineHeight: 1.65, fontFamily: "'IM Fell English', Georgia, serif", marginBottom: 12 }}>
+              {isEmailBound ? "You are signed in. Your account can sync access and progress across devices." : "Sign in to keep purchases and progress tied to your account."}
+            </div>
+            {!isEmailBound ? (
+              <button onClick={onBindAccount} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: D ? "rgba(255,255,255,0.10)" : S ? "rgba(139,94,26,0.18)" : "rgba(0,0,0,0.07)", border: `1px solid ${borderStrong}`, color: text, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign in with Email</button>
+            ) : (
+              <button onClick={onSignOut} style={{ width: "100%", padding: "11px 20px", borderRadius: 14, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
+            )}
+            <button onClick={copyDeviceId} style={{ width: "100%", marginTop: 8, padding: "10px 16px", borderRadius: 12, background: "transparent", border: `1px solid ${border}`, color: textDim, fontFamily: headFont, fontSize: 11, cursor: "pointer" }}>Copy Device ID</button>
           </div>
         </div>
       </div>
@@ -4061,6 +4068,25 @@ function getOrBuildSentences() {
       <InkBlobs show={!D && !S} />
       <ParchmentOverlay scroll={S} />
 
+      {!selected && themeOpen && (
+        <div
+          onClick={() => setThemeOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 24,
+            background: D
+              ? "rgba(0,0,0,0.46)"
+              : S
+                ? "rgba(80,42,8,0.20)"
+                : "rgba(236,232,222,0.58)",
+            backdropFilter: "blur(5px)",
+            WebkitBackdropFilter: "blur(5px)",
+            transition: "opacity 0.18s ease",
+          }}
+        />
+      )}
+
       {/* ── HEADER ── */}
       <div ref={topRef} style={{ position: "sticky", top: 8, zIndex: 30, padding: "0 12px" }}>
         <div style={{
@@ -4086,8 +4112,7 @@ function getOrBuildSentences() {
               background:"radial-gradient(ellipse 70% 120% at 20% 50%, rgba(255,255,255,0.02) 0%, transparent 60%)",
             }} />
           )}
-          {/* ── Bouncing balls — all themes ── */}
-          <BouncingBalls dark={D} scroll={S} />
+          {/* Header ambient particles removed for cleaner mobile UI */}
         <div style={{ padding: "10px 16px", overflow: "visible" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, position: "relative", minWidth: 0 }}>
             {selected ? (

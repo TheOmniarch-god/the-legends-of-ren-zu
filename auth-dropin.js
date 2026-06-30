@@ -40,6 +40,8 @@
         bottom: 14px;
         z-index: 99997;
         font-family: Georgia, serif;
+        padding: 7px;
+        overflow: visible;
       }
 
       .rz-auth-button {
@@ -114,14 +116,15 @@
       }
 
       .rz-auth-button-bound {
-        width: 52px;
-        height: 52px;
+        width: 48px;
+        height: 48px;
         padding: 0;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        overflow: visible;
+        overflow: hidden;
+        box-sizing: border-box;
         background:
           radial-gradient(circle at 50% 34%, rgba(255,252,239,0.98) 0%, rgba(247,231,190,0.90) 34%, rgba(64,42,18,0.92) 100%);
         border-color: rgba(216,163,77,0.58);
@@ -145,8 +148,8 @@
       }
 
       .rz-fate-spider {
-        width: 30px;
-        height: 30px;
+        width: 27px;
+        height: 27px;
         overflow: visible;
         display: block;
         filter: drop-shadow(0 0 5px rgba(216,163,77,0.72)) drop-shadow(0 1px 1px rgba(0,0,0,0.28));
@@ -803,7 +806,8 @@
       @media (max-width: 640px) {
         .rz-auth-root {
           right: 12px;
-          bottom: max(12px, env(safe-area-inset-bottom, 12px));
+          bottom: max(72px, calc(env(safe-area-inset-bottom, 0px) + 72px));
+          padding: 8px;
         }
 
         .rz-auth-button {
@@ -812,14 +816,14 @@
         }
 
         .rz-auth-button-bound {
-          width: 48px;
-          height: 48px;
+          width: 44px;
+          height: 44px;
           padding: 0;
         }
 
         .rz-fate-spider {
-          width: 29px;
-          height: 29px;
+          width: 25px;
+          height: 25px;
         }
 
         .rz-auth-backdrop {
