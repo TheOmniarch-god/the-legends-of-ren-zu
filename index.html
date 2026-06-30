@@ -1000,7 +1000,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
 
         <div style={{ fontSize: 40, marginBottom: 8 }}>{failed ? "⚠️" : data.code ? "🎁" : "⏳"}</div>
         <div style={{ fontFamily: headFont, fontSize: 20, fontWeight: 700, color: text, marginBottom: 8 }}>
-          {failed ? "Offering incomplete" : data.code ? "Your realm code is ready" : "Confirming your offering"}
+          {failed ? "Offering incomplete" : data.code ? "Your Realm Token is ready" : "Confirming your payment"}
         </div>
 
         <div style={{ fontSize: 13, color: textDim, lineHeight: 1.6, marginBottom: 16, fontFamily: "'IM Fell English', Georgia, serif" }}>
@@ -1009,8 +1009,8 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
             : failed
               ? "Flutterwave returned you without a successful payment. If you were charged, contact support with the transaction reference below."
               : data.code
-                ? "If the email delays or never arrives, you can still claim your realm right here or copy the code for later."
-                : "Your payment redirect worked. Heaven is now waiting for the webhook to finish refining your access code. This can take a few seconds."}
+                ? "If the email delays or never arrives, you can claim your realm here or copy the token for later."
+                : "Your payment redirect worked. Waiting for Flutterwave to confirm and issue your Realm Token. This can take a few seconds."}
         </div>
 
         {data.txRef && (
@@ -1026,7 +1026,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
 
         {!failed && data.loading && (
           <div style={{ fontSize: 12, color: textDim, marginBottom: 16 }}>
-            Waiting for Flutterwave webhook confirmation…
+            Waiting for Flutterwave confirmation…
           </div>
         )}
 
@@ -1038,7 +1038,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
               background: D ? "rgba(255,255,255,0.04)" : S ? "rgba(139,94,26,0.08)" : "rgba(0,0,0,0.03)"
             }}>
               <div style={{ fontSize: 10, color: textDim, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, fontFamily: headFont }}>
-                {data.tier ? `${data.tier.replaceAll("_", " ")} token` : "Cultivator token"}
+                {data.tier ? `${data.tier.replaceAll("_", " ")} Realm Token` : "Realm Token"}
               </div>
               <div style={{ fontFamily: headFont, fontSize: 18, color: text, letterSpacing: "0.08em", overflowWrap: "anywhere" }}>
                 {data.code}
@@ -1055,7 +1055,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
                     color: D ? "#fff" : S ? "#1f0f02" : "#fff", fontSize: 12, cursor: "pointer", fontFamily: headFont, fontWeight: 600,
                     opacity: data.redeeming ? 0.7 : 1,
                   }}>
-                  {data.redeeming ? "Claiming…" : "Claim realm now"}
+                  {data.redeeming ? "Claiming…" : "Claim Realm"}
                 </button>
               )}
               <button onClick={copyCode}
@@ -1063,7 +1063,7 @@ function PaymentRecoveryModal({ data, onClose, onRedeem, onRetry, D, S }) {
                   padding: "10px 16px", borderRadius: 12, border: `1px solid ${border}`,
                   background: "transparent", color: text, fontSize: 12, cursor: "pointer", fontFamily: headFont, fontWeight: 600,
                 }}>
-                {copied ? "Copied" : "Copy code"}
+                {copied ? "Copied" : "Copy token"}
               </button>
             </div>
           </>
@@ -2571,7 +2571,7 @@ const chapterKeyRef = useRef(null);
         txRef,
         transactionId,
         loading: false,
-        error: data.error || "The code is not ready yet. Try again in a few seconds.",
+        error: data.error || "The Realm Token is not ready yet. Try again in a few seconds.",
         redeeming: false,
         preview: false
       }));
