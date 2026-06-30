@@ -201,13 +201,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, ignored: true, reason: "missing id/tx_ref" });
     }
 
-    // Legacy DB note:
-    // payment_codes.paystack_reference now stores Flutterwave tx_ref.
-    // We keep this column name for compatibility until a safe DB migration renames it.
     const { data: existingCode, error: existingErr } = await supabase
       .from("payment_codes")
       .select("id, code, tier")
-      .eq("paystack_reference", txRef)
+      .eq("payment_reference", txRef)
       .maybeSingle();
 
     if (existingErr) {
@@ -252,6 +249,10 @@ export default async function handler(req, res) {
         code,
         tier,
         used: false,
+        payment_reference: txRef,
+        payment_provider: "flutterwave",
+        flutterwave_transaction_id: String(transactionId),
+        // Backward compatibility for older recovery code / older rows.
         paystack_reference: txRef,
         customer_email: email,
         email,
