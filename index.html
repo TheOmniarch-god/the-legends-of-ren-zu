@@ -2493,6 +2493,7 @@ const chapterKeyRef = useRef(null);
   const topRef   = useRef(null);
   const paymentLookupTimerRef = useRef(null);
   const pendingTreasureAfterLoginRef = useRef(false);
+  const readingSettingsScrollYRef = useRef(0);
 
   // ── Cultivation billing / essence helpers ────────────────────────────
   const DAILY_CHAT_LIMIT = 3;
@@ -3683,6 +3684,33 @@ const LONG_PRESS_MOVE_THRESHOLD = 16; // px — ignore sub-pixel tremor, only ca
     setAudioStatus("");
     setVoice(v);
   }
+
+  // Auto-close reading controls when the reader scrolls downward.
+  // Keeps settings panels from lingering over the text once reading resumes.
+  useEffect(() => {
+    readingSettingsScrollYRef.current = window.scrollY || 0;
+
+    function onReadingScroll() {
+      if (!selected) return;
+      if (!readerSettingsOpen && !voicePickerOpen) {
+        readingSettingsScrollYRef.current = window.scrollY || 0;
+        return;
+      }
+
+      const currentY = window.scrollY || 0;
+      const lastY = readingSettingsScrollYRef.current || 0;
+
+      if (currentY > lastY + 8) {
+        if (readerSettingsOpen) setReaderSettingsOpen(false);
+        if (voicePickerOpen) setVoicePickerOpen(false);
+      }
+
+      readingSettingsScrollYRef.current = currentY;
+    }
+
+    window.addEventListener("scroll", onReadingScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onReadingScroll);
+  }, [selected, readerSettingsOpen, voicePickerOpen]);
 
   // Close voice picker when chapter changes
   useEffect(() => {
