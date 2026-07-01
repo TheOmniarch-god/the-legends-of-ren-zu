@@ -185,8 +185,9 @@ async function askGroq(message, key) {
       Authorization: `Bearer ${key}`
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       max_tokens: 1100,
+      include_reasoning: false,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user",   content: message }
